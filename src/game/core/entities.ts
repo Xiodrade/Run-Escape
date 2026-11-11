@@ -162,10 +162,11 @@ export type BossState = {
     // Where it'll stare once it turns at nextStare, picked and said a moment before
     stareNext?: number;
     // BossDef.stomp: hits since the player stepped under it, the next one and when it was set (to
-    // draw its ring filling), and whether its message has been said
+    // draw its ring filling), when the last stepped out, and whether its message has been said
     stomps?: number;
     nextStomp?: number;
     stompFrom?: number;
+    stompLeft?: number;
     stompSaid?: boolean;
     // How many times each row attack's been used (BulletPatternDef.rows), by name
     rowSets?: Record<string, number>;

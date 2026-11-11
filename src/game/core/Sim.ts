@@ -19031,16 +19031,24 @@ export class Sim {
                 }
             }
         });
+        // Starting over only once nobody's been under it a while (its first's wait): a tick's step
+        // out, back before it comes, put the first off again and again
+        const wait = secondsToTicks(stomp.first ?? stomp.interval);
         if (under.length === 0) {
-            state.stomps = 0;
-            state.nextStomp = undefined;
-            state.stompFrom = undefined;
+            state.stompLeft ??= this.tick;
+            if (this.tick - state.stompLeft >= wait) {
+                state.stomps = 0;
+                state.nextStomp = undefined;
+                state.stompFrom = undefined;
+                state.stompLeft = undefined;
+            }
             return;
         }
+        state.stompLeft = undefined;
         const interval = secondsToTicks(stomp.interval);
         if (state.nextStomp === undefined) {
             state.stompFrom = this.tick;
-            state.nextStomp = this.tick + secondsToTicks(stomp.first ?? stomp.interval);
+            state.nextStomp = this.tick + wait;
         }
         if (this.tick < state.nextStomp || hurt.length === 0) {
             return;

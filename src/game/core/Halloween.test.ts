@@ -236,8 +236,12 @@ describe("The Mimic", () => {
         }
         expect(hits).toEqual([1, 2, 3, 3, 3].map((n) => Math.round(n * boss.damageScale)));
 
+        // Out of it a moment (its interval, with no first of its own), and it starts over
         sim.player.x = boss.x + 6;
-        hooks(sim).stepStomp(boss);
+        for (let i = 0; i <= interval; i++) {
+            sim.tick++;
+            hooks(sim).stepStomp(boss);
+        }
         expect(boss.bossState!.stomps).toBe(0);
     });
 });

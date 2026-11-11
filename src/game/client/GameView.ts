@@ -2412,7 +2412,9 @@ export class GameView {
                 stomp &&
                 !enemy.dead &&
                 state?.nextStomp !== undefined &&
-                state.stompFrom !== undefined
+                state.stompFrom !== undefined &&
+                // Not while nobody's under it
+                state.stompLeft === undefined
             ) {
                 const s = Math.min(
                     1,

@@ -784,7 +784,6 @@ describe("Ba-Ba", () => {
             if (hits.length === 0) {
                 // The ring's there from the moment you're under, till the first lands
                 expect(state.stompFrom).toBeDefined();
-                expect(state.nextStomp).toBeGreaterThan(state.stompFrom!);
             }
             if (sim.player.hp < hp) {
                 hits.push(i);
@@ -798,16 +797,47 @@ describe("Ba-Ba", () => {
             }
         }
         // The first waits its moment, then each interval
-        expect(hits[0]).toBeGreaterThanOrEqual(Math.round(stomp.first! * TICKS_PER_SECOND) - 1);
+        expect(hits[0]).toBe(Math.round(stomp.first! * TICKS_PER_SECOND));
         expect(hits[1] - hits[0]).toBe(Math.round(stomp.interval * TICKS_PER_SECOND));
         expect(swings).toBe(hits.length);
         expect(notices).toEqual([stomp.message]);
 
-        // A step back and it's over, ring and all
+        // A tick's step out and back doesn't put it off: it comes as it would have
+        const state = boss.bossState!;
+        const due = state.nextStomp!;
         sim.player.x = boss.x + stomp.radius + 1;
+        sim.tick++;
         step(boss);
-        expect(boss.bossState!.nextStomp).toBeUndefined();
-        expect(boss.bossState!.stompFrom).toBeUndefined();
+        expect(state.nextStomp).toBe(due);
+        sim.player.x = boss.x + boss.radius + sim.player.radius;
+        while (sim.tick < due) {
+            sim.tick++;
+            sim.player.invulnerable = 0;
+            const hp = (sim.player.hp = sim.player.maxHp);
+            step(boss);
+            expect(sim.player.hp < hp).toBe(sim.tick >= due);
+        }
+
+        // Out of it for its first's wait and it's over, ring and all; back in, the wait again,
+        // and nothing said twice
+        sim.player.x = boss.x + stomp.radius + 1;
+        for (let i = 0; i <= Math.round(stomp.first! * TICKS_PER_SECOND); i++) {
+            sim.tick++;
+            step(boss);
+        }
+        expect(state.nextStomp).toBeUndefined();
+        expect(state.stompFrom).toBeUndefined();
+        sim.player.x = boss.x + boss.radius + sim.player.radius;
+        sim.tick++;
+        step(boss);
+        expect(state.nextStomp! - sim.tick).toBe(Math.round(stomp.first! * TICKS_PER_SECOND));
+        sim.takeEvents();
+        for (let i = 0; i < 2 * TICKS_PER_SECOND; i++) {
+            sim.tick++;
+            sim.player.invulnerable = 0;
+            step(boss);
+        }
+        expect(sim.takeEvents().some((e) => e.type === "notice")).toBe(false);
     });
 
     it("has her adds drop food at Entry, a third of that at Expert, none past 450", () => {
