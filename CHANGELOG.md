@@ -15,6 +15,9 @@ the version in the corner).
   after another. After each Memory Blast he now stays on the floor at least as long as it took,
   Memory Blast is six steps at most, and once one of his shadows is dead he comes back from it in
   that shadow's quarter, where he can be hurt, not out of reach in the middle. Fixed by Okaeri.
+- Ba-Ba stomps on anyone standing right up against her, but nothing showed it, so it looked like
+  damage from nowhere. Now a red ring fills at her feet before each stomp, the first one waits a
+  moment so you can step back, and a message says what it is the first time. Fixed by Okaeri.
 
 ## 0.30.0 - 2026-11-09
 

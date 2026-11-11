@@ -409,6 +409,11 @@ animations from a lister of those whose model or animation is in the raid's rang
     - **Invocations**: Mind the Gap (the gap at the foot, where her barrier stood, kills),
       Boulderdash, Shaking Things Up, Jungle Japes (banana peels root you, drawn as the Banana) and
       Gotta Have Faith (the sarcophagi's bolts hit harder: there's no prayer here to scale by).
+    - **Her stomp** (`BossDef.stomp`): whoever's right up against her (within `stomp.radius` of
+      her middle, which her solid body leaves you at) is stomped, harder each time they stay. A
+      red ring fills at her feet before each (`GameView.drawBossWindups`), the first waits a
+      moment (`stomp.first`), each lands with a flash, and the first says what it is. Without
+      those, players took it as damage from nowhere.
     - Her hitpoints go up with the path level (`TOMBS_BOSSES`), as does each path's boss's.
     - Her boulders are drawn as her Boulder NPC (11782) rolling (9518): the rows
       (`BulletPatternDef.look`), the shards, and the boulder that drops into each rockfall and boulder

@@ -1368,8 +1368,18 @@ export type BossDef = {
     keepDistance?: number;
     // Standing under it hurts every interval seconds for damage, then a
     // damage more each time, up to max; stepping out starts it over (the
-    // Mimic's stomp)
-    stomp?: { radius: number; interval: number; damage: number; max: number; sound?: number };
+    // Mimic's stomp). The first comes first seconds after stepping under (interval without it),
+    // each marked by a ring filling at its feet (GameView), and message is said the first time
+    // one lands in the fight.
+    stomp?: {
+        radius: number;
+        interval: number;
+        damage: number;
+        max: number;
+        sound?: number;
+        first?: number;
+        message?: string;
+    };
     // Dharok's set effect: hits get stronger as he loses hitpoints, up to
     // this much more at none left (1 = double)
     wretched?: number;

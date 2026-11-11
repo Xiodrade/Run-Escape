@@ -433,8 +433,17 @@ export const BA_BA: EnemyDef = {
         look: TOMBS_EXPOSED,
         // Her rampage runs on her walk (no run of hers is in the cache)
         surgeSeq: 9737,
-        // Camp under her and she stomps, quicker the longer you stay
-        stomp: { radius: 1.6, interval: 0.6, damage: 2, max: 8, sound: 5971 },
+        // Right up against her and she stomps, harder the longer you stay: a ring fills at her
+        // feet before each, and the first waits a moment, so a step back answers it
+        stomp: {
+            radius: 1.6,
+            interval: 0.6,
+            damage: 2,
+            max: 8,
+            sound: 5971,
+            first: 1.2,
+            message: "Ba-Ba stomps on whoever's right up against her! Keep a step back.",
+        },
         rollingStones: {
             at: [0.66, 0.33],
             // Over sooner if someone gets back up to her (TombsPathDef boss.boulders)

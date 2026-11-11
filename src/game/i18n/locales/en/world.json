@@ -1010,6 +1010,7 @@
   "enemy.ba_ba.name": "Ba-Ba",
   "enemy.ba_ba.spawn": "Ba-Ba rises from her throne!",
   "boss.ba_ba.enrage.message": "Ba-Ba's furious!",
+  "boss.ba_ba.stomp.message": "Ba-Ba stomps on whoever's right up against her! Keep a step back.",
   "boss.ba_ba.rollingStones.message": "Ba-Ba flees to her altar and boulders come rolling! Get back up to her!",
   "boss.ba_ba.rollingStones.endMessage": "The boulders stop rolling. Ba-Ba can be hurt again!",
   "boss.ba_ba.phases.phases.status.ec6qyl": "Queen of the baboons",

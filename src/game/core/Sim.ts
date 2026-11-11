@@ -19034,15 +19034,26 @@ export class Sim {
         if (under.length === 0) {
             state.stomps = 0;
             state.nextStomp = undefined;
+            state.stompFrom = undefined;
             return;
         }
-        const interval = Math.round(stomp.interval * TICKS_PER_SECOND);
-        state.nextStomp ??= this.tick + interval;
+        const interval = secondsToTicks(stomp.interval);
+        if (state.nextStomp === undefined) {
+            state.stompFrom = this.tick;
+            state.nextStomp = this.tick + secondsToTicks(stomp.first ?? stomp.interval);
+        }
         if (this.tick < state.nextStomp || hurt.length === 0) {
             return;
         }
         state.stomps = (state.stomps ?? 0) + 1;
+        state.stompFrom = this.tick;
         state.nextStomp = this.tick + interval;
+        // Seen as well as heard: its flash at its feet, and the first time, what it is
+        this.emit({ type: "bossSwing", x: enemy.x, y: enemy.y, radius: stomp.radius });
+        if (stomp.message && !state.stompSaid) {
+            state.stompSaid = true;
+            this.emit({ type: "notice", message: stomp.message });
+        }
         const damage = Math.min(stomp.max, stomp.damage * state.stomps) * enemy.damageScale;
         const current = this.hero;
         for (const hero of hurt) {

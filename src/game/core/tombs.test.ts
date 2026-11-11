@@ -762,6 +762,54 @@ describe("Ba-Ba", () => {
     }
     const baba = (sim: Sim) => sim.enemies.find((e) => e.def.id === "ba_ba" && !e.dead)!;
 
+    it("stomps on whoever's right up against her, shown and said before it lands", () => {
+        // Players met it as damage from nowhere: against her side, no mark, no word
+        const sim = atBaba();
+        const boss = baba(sim);
+        const stomp = boss.def.boss!.stomp!;
+        const step = (sim as unknown as { stepStomp(e: typeof boss): void }).stepStomp.bind(sim);
+        sim.takeEvents();
+        // Touching her side, as her solid body leaves you
+        sim.player.x = boss.x + boss.radius + sim.player.radius;
+        sim.player.y = boss.y;
+        const hits: number[] = [];
+        const notices: string[] = [];
+        let swings = 0;
+        for (let i = 0; i < 3 * TICKS_PER_SECOND; i++) {
+            sim.tick++;
+            sim.player.invulnerable = 0;
+            const hp = (sim.player.hp = sim.player.maxHp);
+            step(boss);
+            const state = boss.bossState!;
+            if (hits.length === 0) {
+                // The ring's there from the moment you're under, till the first lands
+                expect(state.stompFrom).toBeDefined();
+                expect(state.nextStomp).toBeGreaterThan(state.stompFrom!);
+            }
+            if (sim.player.hp < hp) {
+                hits.push(i);
+            }
+            for (const event of sim.takeEvents()) {
+                if (event.type === "notice") {
+                    notices.push(event.message);
+                } else if (event.type === "bossSwing") {
+                    swings++;
+                }
+            }
+        }
+        // The first waits its moment, then each interval
+        expect(hits[0]).toBeGreaterThanOrEqual(Math.round(stomp.first! * TICKS_PER_SECOND) - 1);
+        expect(hits[1] - hits[0]).toBe(Math.round(stomp.interval * TICKS_PER_SECOND));
+        expect(swings).toBe(hits.length);
+        expect(notices).toEqual([stomp.message]);
+
+        // A step back and it's over, ring and all
+        sim.player.x = boss.x + stomp.radius + 1;
+        step(boss);
+        expect(boss.bossState!.nextStomp).toBeUndefined();
+        expect(boss.bossState!.stompFrom).toBeUndefined();
+    });
+
     it("has her adds drop food at Entry, a third of that at Expert, none past 450", () => {
         withEntryScale();
         expect(atBaba()["tombsBossFood"]()).toBeCloseTo(TOMBS_BOSS_FOOD.chance);
