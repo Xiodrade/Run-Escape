@@ -1196,11 +1196,11 @@ function CharacterScreen({ ui, client }: ScreenProps): JSX.Element {
             : needsFor
               ? { onBack: () => setNeedsFor(undefined) }
               : picking
-              ? { onBack: closePicker, onConfirm: closePicker }
-              : {
-                    onBack: () => client.showScreen("title"),
-                    onConfirm: () => void client.startRun(),
-                },
+                ? { onBack: closePicker, onConfirm: closePicker }
+                : {
+                      onBack: () => client.showScreen("title"),
+                      onConfirm: () => void client.startRun(),
+                  },
     );
     const modes = map.tombs ? (
         // The Tombs go by their invocations instead of endless and hard mode

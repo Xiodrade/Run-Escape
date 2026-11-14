@@ -857,29 +857,21 @@
     gap: 6px;
 }
 
-.ui-pack-preview-info-on {
-    outline: 2px solid var(--ui-orange);
-}
-
-.ui-pack-preview > .ui-subtle {
+.ui-pack-preview-status {
     margin: 0;
 }
 
-.ui-pack-preview-list {
-    flex: 1;
-    min-height: 0;
-    overflow-y: auto;
-}
-
-.ui-pack-preview-list h3 {
-    margin: 6px 0 4px;
-    font-size: 15px;
-    text-shadow: 1px 1px 0 #000;
+.ui-pack-preview .ui-cards-tabs {
+    margin-bottom: 0;
 }
 
 .ui-pack-preview-grid {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    align-content: start;
     gap: 4px;
     margin: 0;
     padding: 0;
@@ -959,4 +951,79 @@
 .ui-cards-tab:disabled {
     cursor: default;
     opacity: 0.55;
+}
+
+/* The preview's info: a drawn "i" in a ring, and the small bubble it opens, its arrow pointing at
+   it (InfoPopover places both) */
+.ui-info {
+    position: relative;
+    display: inline-flex;
+}
+
+.ui-info-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    background: none;
+    border: none;
+    cursor: pointer;
+}
+
+.ui-info-icon > span {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border: 2px solid var(--ui-orange);
+    border-radius: 50%;
+    box-sizing: border-box;
+    font-family: "OSRS Bold", serif;
+    font-size: 15px;
+    color: var(--ui-orange);
+    text-shadow: 1px 1px 0 #000;
+}
+
+.ui-info-icon[aria-expanded="true"] > span {
+    background: var(--ui-orange);
+    color: #000;
+    text-shadow: none;
+}
+
+.ui-info-bubble {
+    position: absolute;
+    z-index: 5;
+    width: max-content;
+    max-width: min(340px, calc(100vw - 16px));
+    padding: 8px 10px;
+    background: #2b251c;
+    border: 1px solid #000;
+    outline: 1px solid #5b4f3b;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
+    font-size: 13px;
+    line-height: 1.25;
+    text-align: left;
+}
+
+/* The arrow: a square turned half round, under the bubble's edge, at the icon */
+.ui-info-bubble::before {
+    content: "";
+    position: absolute;
+    left: calc(var(--arrow, 50%) - 6px);
+    top: -7px;
+    width: 12px;
+    height: 12px;
+    background: #2b251c;
+    border-left: 1px solid #5b4f3b;
+    border-top: 1px solid #5b4f3b;
+    transform: rotate(45deg);
+}
+
+.ui-info-above::before {
+    top: auto;
+    bottom: -7px;
+    transform: rotate(225deg);
 }

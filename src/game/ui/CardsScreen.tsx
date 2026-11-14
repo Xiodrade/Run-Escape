@@ -75,6 +75,8 @@ export function CardsScreen({ ui, client }: Props): JSX.Element {
     const [opened, setOpened] = useState<{ pack: PackDef; cards: PackCard[] } | undefined>();
     // A pack's preview, from the shop (ui/PackPreview.tsx)
     const [previewing, setPreviewing] = useState<PackDef | undefined>();
+    // Its info popover
+    const [previewInfo, setPreviewInfo] = useState(false);
     // A found card shown big in a window of its own, where there's no room for it beside the grid
     const [viewing, setViewing] = useState<{ card: CardDef; rarity?: Rarity } | undefined>(
         undefined,
@@ -114,9 +116,11 @@ export function CardsScreen({ ui, client }: Props): JSX.Element {
             ? () => setViewing(undefined)
             : opened
               ? () => setOpened(undefined)
-              : previewing
-                ? () => setPreviewing(undefined)
-                : back,
+              : previewInfo
+                ? () => setPreviewInfo(false)
+                : previewing
+                  ? () => setPreviewing(undefined)
+                  : back,
     });
     const again = (pack: PackDef): { label: string; run: () => void } | undefined => {
         if (pack === BASIC_PACK && packs > 0) {
@@ -235,7 +239,12 @@ export function CardsScreen({ ui, client }: Props): JSX.Element {
                 <PackPreview
                     save={save}
                     pack={previewing}
-                    onClose={() => setPreviewing(undefined)}
+                    info={previewInfo}
+                    onInfo={setPreviewInfo}
+                    onClose={() => {
+                        setPreviewInfo(false);
+                        setPreviewing(undefined);
+                    }}
                 />
             )}
             {opened && (

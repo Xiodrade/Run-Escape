@@ -182,24 +182,49 @@ function previewPack(showScreen: () => void): void {
     act(() => {
         vi.runAllTimers();
     });
-    expect(
-        within(dialog).getByText("Hit rates for your unlocks, from 100,000 simulated packs."),
-    ).toBeInTheDocument();
+    // No word of how the figures are got on the screen itself: that's the info's
+    expect(within(dialog).queryByText(/simulated/)).toBeNull();
+    expect(within(dialog).queryByText("Working out the odds...")).toBeNull();
     const scimitar = within(dialog).getByText("Scimitar").closest("li")!;
     expect(within(scimitar).getByText(/^\d+(\.\d+)?% per pack$/)).toBeInTheDocument();
     expect(within(keris).queryByText(/per pack/)).toBeNull();
-    // Info: each rarity's chance, as the thing on the card and as its version
-    fireEvent.click(within(dialog).getByRole("button", { name: "Info" }));
-    expect(within(dialog).getByRole("columnheader", { name: "Item" })).toBeInTheDocument();
-    expect(within(dialog).getByRole("columnheader", { name: "Version" })).toBeInTheDocument();
-    expect(within(dialog).getByRole("rowheader", { name: "Very rare" })).toBeInTheDocument();
+    // A tab for each rarity, with its count: only that rarity's cards
+    const rare = within(dialog).getByRole("button", { name: /^Rare \(\d+\)$/ });
+    fireEvent.click(rare);
+    expect(rare).toHaveAttribute("aria-pressed", "true");
+    expect(within(dialog).getByText("Keris partisan")).toBeInTheDocument();
+    expect(within(dialog).queryByText("Scimitar")).toBeNull();
+    // The info icon's popover: each rarity's chance, as the thing on the card and as its
+    // version, the packs with a Very rare item, and how the figures are got
+    const icon = within(dialog).getByRole("button", { name: "About these odds" });
+    expect(icon).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(icon);
+    expect(icon).toHaveAttribute("aria-expanded", "true");
+    const info = screen.getByRole("dialog", { name: "About these odds" });
+    expect(within(info).getByRole("columnheader", { name: "Item" })).toBeInTheDocument();
+    expect(within(info).getByRole("columnheader", { name: "Version" })).toBeInTheDocument();
+    expect(within(info).getByRole("rowheader", { name: "Very rare" })).toBeInTheDocument();
+    expect(within(info).getByText(/^Packs with at least one Very rare item: /)).toBeInTheDocument();
     expect(
-        within(dialog).getByText(/^Packs with at least one Very rare item: /),
+        within(info).getByText("From 100,000 simulated packs, for your save."),
     ).toBeInTheDocument();
+    // The icon again shuts it, and so does Escape, before the preview
+    fireEvent.click(icon);
+    expect(screen.queryByRole("dialog", { name: "About these odds" })).toBeNull();
+    fireEvent.click(icon);
+    fireEvent.keyDown(window, { code: "Escape", key: "Escape" });
+    expect(screen.queryByRole("dialog", { name: "About these odds" })).toBeNull();
+    expect(dialog).toBeInTheDocument();
     // Escape shuts the preview, not the screen
     fireEvent.keyDown(window, { code: "Escape", key: "Escape" });
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(showScreen).not.toHaveBeenCalled();
+    // Opened again, on the tab it was left on
+    fireEvent.click(screen.getByRole("button", { name: `Preview the ${packName(weapons)}` }));
+    expect(screen.getByRole("button", { name: /^Rare \(\d+\)$/ })).toHaveAttribute(
+        "aria-pressed",
+        "true",
+    );
 }
 
 test("shuts the pack's window on Escape before leaving the screen", () => {

@@ -6,7 +6,6 @@ import { describeMissing, parseRoomCode, roomPlaysCardsOnly } from "../client/co
 import { RoomListing, RoomView } from "../client/coop/protocol";
 import { CHARACTERS, characterName, getCharacter } from "../content/characters";
 import { MAX_PARTY } from "../content/coop";
-import { getVault } from "../content/vault";
 import {
     HARD_PRESET,
     cleanInvocations,
@@ -24,6 +23,7 @@ import {
     isCoopMap,
     takesInvocations,
 } from "../content/maps";
+import { getVault } from "../content/vault";
 import { isCardRunBlocked } from "../core/cardRuns";
 import { isEndlessUnlocked, isHardUnlocked, isMapUnlocked } from "../core/save";
 import { fmtNum, list, t, tl, tp, useLang } from "../i18n";

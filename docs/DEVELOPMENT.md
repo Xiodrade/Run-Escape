@@ -1531,11 +1531,14 @@ involved.
   a foil sheen, which passes a few times only on the big card and in a pack's window, and never with
   `prefers-reduced-motion`.
 - **A pack's preview** (`ui/PackPreview.tsx`, `core/cardOdds.ts`): the shop's Preview lists every
-  card a pack can hold, by rarity, each with its chance to be in one pack for this save, or Locked
-  with the map that unlocks it (`cardUnlockMap`); Info shows the rarity rates (each card's item
-  rarity and version, and packs with a Very rare item). The figures are `PREVIEW_PACKS` packs rolled
-  as a bought one is (`simulatePackOdds`), a chunk at a time so a phone doesn't stall, on a
-  generator seeded by the pack and pool, and kept till the pool changes; a test holds them to
+  card a pack can hold on tabs by rarity (and All, each with its count, the last one kept per pack
+  for the session), each card with its chance to be in one pack for this save, or Locked with the
+  map that unlocks it (`cardUnlockMap`). The info icon opens a small popover (`InfoPopover`: on a
+  press, or hover and focus with a mouse; shut by a press outside, the icon or Escape, which
+  `CardsScreen` handles first) with the rarity rates: each card's item rarity and version, packs
+  with a Very rare item, and how they're got. The figures are `PREVIEW_PACKS` packs rolled as a
+  bought one is (`simulatePackOdds`), a chunk at a time so a phone doesn't stall, on a generator
+  seeded by the pack and pool, and kept till the pool changes; a test holds them to
   `exactPackOdds`.
 - **What Cards only needs** (`ui/CardNeeds.tsx`): the run screen's button and the window it opens
   both go by `getCardRunNeeds`, as the run's check does (`getCardRunShortfall`), so they agree; the

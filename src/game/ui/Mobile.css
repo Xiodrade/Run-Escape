@@ -452,6 +452,12 @@
         min-height: 44px;
     }
 
+    /* A pack preview's info icon */
+    .ui-info-icon {
+        width: 44px;
+        height: 44px;
+    }
+
     .ui-log-counts {
         padding-right: 52px;
     }
