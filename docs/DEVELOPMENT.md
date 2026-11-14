@@ -1424,6 +1424,19 @@ adventurer can have:
 - **`PetDef`** (`content/pets.ts`): a pet's `id` is its trophy's, and its follower NPC is the
   cache's variant marked as a follower, with its own idle and walk animations. The pet can be
   taken out once its trophy is found.
+- **The log's screen** (`ui/CollectionLogScreen.tsx`) is laid out as OSRS's: tabs, entries and
+  a page of items. `getLogEntries` (`content/collectionLog.ts`) builds it from the save as it is,
+  with nothing of its own saved. Each `REWARD_MAPS` map is an entry, filed by `getMapTab`: a raid
+  (`RAID_MAPS`; the Tombs have no `MapDef.raid`) under Raids, a seasonal map under Minigames, a
+  boss fight or an act's map under Bosses. Clues is the casket gear (`SaveData.foundGear`) by
+  rarity, and Other the evolutions, but for gear and evolutions brought in on a map that isn't
+  out (`isMapOut`). A tab with no entries isn't shown. Names and sentences come in the player's
+  language. An item's `key` is unique in the whole log, and the title's total counts every item:
+  two finds can share a name, as a casket's Justiciar faceguard isn't the Theatre's trophy. The
+  items scroll between the entry's head and the description of the one pointed at, so that's
+  always in view. Narrower than 600px, or on a phone held upright (the rotate notice's own
+  query), the entries are a dropdown, and the log is the one screen the rotate notice leaves
+  readable there (`GameUi.tsx`).
 
 ### Thanksgiving's Avian Assaulter
 
@@ -2234,7 +2247,12 @@ scripts/dev/render-stats.ts lumbridge    what a map costs to draw, without a bro
 ```
 
 Tests: `bun run test`. `.github/workflows/check.yml` runs them with the type check on every pull
-request (without the game's cache, so `generator.test.ts` skips its long map check there).
+request (without the game's cache). `generator.test.ts`'s long map checks are opt-in:
+`bun run test:maps` (`MAP_CHECKS=1`, with the cache) runs them, and the release workflow runs them
+every time. They build the maps with ScapeRune, collision and how a map's scenery loads, so run
+them after a change to any of those (`src/game/scaperune/`, `scripts/scaperune/`, `core/world/`,
+`RegionDataLoader.ts`, `SceneBuilder.ts`, `LocOverrides.ts`), to a map, or to a newer cache. Asked
+for without the cache, they fail rather than pass with nothing checked.
 
 The dev server's file watcher leaves out `.claude/`, where Claude Code keeps its worktrees. Each is
 a whole checkout, and watching them all held up the first load after every start by tens of
@@ -2280,7 +2298,8 @@ The game runs on the one cache `GAME_CACHE_NAME` names (README, Cache version). 
    A type only written a new way doesn't count. Look up the ids that changed in the content; a map
    square that changed in an arena can move its collision. Then for the dev maps:
    `compare-caches.ts <old cache> caches/slim-dev/`.
-5. The tests with the cache there. `grid-hash.ts` pins what the ScapeRune maps write, and a map
+5. `bun run test` and `bun run test:maps` with the cache there (a plain `bun run test` leaves the
+   map checks out). `grid-hash.ts` pins what the ScapeRune maps write, and a map
    that copies the real world's squares can change with them: re-pin it on purpose.
 6. A sim sweep of every map on both caches, the same code. The maps whose collision didn't change
    play exactly as before, run for run, so any difference there is a bug; the ones that changed
@@ -2768,6 +2787,17 @@ Everything touch only hangs off `pointer: coarse`, so a mouse and keyboard never
   into the item buttons' column there, where the Tombs' fight button sits. Its lines let taps
   through to the button, but the DPS doesn't, so with a fight button over the items it keeps left
   of that column (`.ui-damage-beside-ability`). Anything new to tap in that column needs the same.
+- A phone's run setup is laid out in React as well as CSS, as CSS alone left it five scrolling
+  boxes a row or two tall: `usePhoneLayout` (`ui/usePhoneLayout.ts`, the same query as
+  `Mobile.css`'s) makes `CharacterScreen` render `PhoneSetup` instead. It's a screen of what's
+  picked (the map's card, the switches, the adventurer under the hero) with each list over the
+  whole screen: `AdventurerPanel` and `MapPanel` with `onDone`, which adds Done, the first go
+  button so a controller's Start presses it. A phone has width and not height, so the pickers
+  put details beside the list, never under it. The co-op room (`CoopLobby`) does the same with
+  its own pieces: the party on the left, the map's card and your adventurer's on the right. Only
+  the host's map card opens a list, with the host's switches beside it, as only the host picks;
+  a guest's is only to see. The pane's 667x375 and 740x360 show it; past 768 wide the pane
+  doesn't emulate touch.
 - A tablet is `pointer: coarse` too, but taller than 520px, so it gets the desktop's layout with
   the touch controls over it. The HUD lets pointers through to the stick, so whatever a finger
   has to reach there takes them back (`pointer-events: auto`) in `Mobile.css`'s plain
@@ -2823,9 +2853,16 @@ of its own.
   real key or click tells it the player's off the pad.
 - **Menus** use the focus: the d-pad or stick moves it to the nearest button that way in the top
   `.ui-modal` (or the screen), and the bottom button clicks it. With nothing focused it sends Enter
-  and focuses the `.ui-button-go` or first button, so a press as a level up appears can't pick one. Start
-  clicks the `.ui-button-go` (Enter the map, Resume, a casket's best choice) wherever the focus is,
-  so starting a run doesn't mean walking the highlight across the screen.
+  and focuses the `.ui-button-go` or first button, so a press as a level up appears can't pick
+  one. The first button is the screen's own: the game's canvas behind it is no stop for the
+  highlight or for Tab (`RendererCanvas`'s `focusable={false}`, as the game reads its keys from the
+  window), though a click still focuses it. So keep a screen's way out (Back, an X) after what's on
+  it in the page, or the first press lands there and a second leaves: the Collection log's X comes
+  after its tabs, drawn on the title's row. Start clicks the `.ui-button-go` (Enter the map,
+  Resume, a casket's best choice) wherever the focus is, so starting a run doesn't mean walking
+  the highlight across the screen. A click can't open a dropdown (`<select>`), so left and right
+  step through its options while it's highlighted (the Collection log's entries on a narrow
+  screen), and up and down move on.
 - **Hints.** `ui/PadHint.tsx`'s `KeyHint` shows a key, or the pad's button while one's in use. The
   numbered choices have none (the d-pad picks them). `:root[data-input="pad"]` shows the highlight.
   The icons are Kenney's [Input Prompts](https://kenney.nl/assets/input-prompts) (CC0, its licence

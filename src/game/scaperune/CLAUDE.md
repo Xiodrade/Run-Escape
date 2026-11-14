@@ -539,7 +539,8 @@ out in 190 pieces, the biggest 1,356 tiles; with doors and props off it's 4,116.
 a town that falls into pieces has nowhere for waves to come at you. In a recipe,
 `findPieces(getCollisionFlags(grid, locs), sizeX, sizeY, rect)` (`collision.ts`) gives the same list, biggest first, to throw on if the biggest is too small.
 
-Before you finish, run `bun run vitest run src/game/scaperune`. It runs `check-maps.ts` over every
+Before you finish, run `bun run test:maps` (`MAP_CHECKS=1 vitest run src/game/scaperune`; a plain
+`bun run test` leaves the map checks out). It runs `check-maps.ts` over every
 dev map, about 60 settings at their extremes, the presets and 12 random rolls. That takes a few
 minutes.
 
@@ -2122,7 +2123,7 @@ room is upstairs, so it's cut with `plane: 1` (see [Prefabs](#prefabs)).
   foam) as warnings, not failures. They must stay byte for byte: Hallowed Night imports `Ground`, `collision`, `format`,
   `mapBuild`, `noise`, `prefabs` and `recipe`. Each shipped map's hash is pinned in `scripts/scaperune/grid-hash.ts`
   (`SHIPPED_HASHES`). Run `CHECK=1 bun run tsx scripts/scaperune/grid-hash.ts` to build every
-  shipped map and compare its hash. `generator.test.ts` runs this check when the cache is present.
+  shipped map and compare its hash. `bun run test:maps` runs this check (a plain `bun run test` doesn't).
   If you change a shipped map, update its hash and explain why in the pull request. Add a hash for
   each new shipped map too. A missing hash fails the check.
 - A recipe whose test builds without the cache keeps a table of its locs' sizes and which are walked through (the

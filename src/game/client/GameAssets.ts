@@ -44,6 +44,7 @@ import { PlayerStance, getPlayerStance } from "../content/stances";
 import { STAT_ICON_SPRITE_IDS } from "../content/statIcons";
 import {
     CHECKBOX_SPRITES,
+    CLOSE_SPRITES,
     CLOUD_SAVE_SPRITES,
     REFUND_SPRITE,
     SOUND_ORB_SPRITES,
@@ -211,6 +212,7 @@ export function getGameSpriteIds(): number[] {
         ...Object.values(CLOUD_SAVE_SPRITES),
         ...Object.values(SOUND_ORB_SPRITES),
         ...Object.values(CHECKBOX_SPRITES),
+        ...Object.values(CLOSE_SPRITES),
         ...GEAR_SLOTS.map((slot) => slot.iconSpriteId),
         REFUND_SPRITE,
         FLAG_SPRITE,

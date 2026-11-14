@@ -1,140 +1,352 @@
-/* Collection log: every evolution as a small card, with the one pointed at
-   described under the list */
+/* Collection log, as OSRS's client draws it: a stone window with its total in the title and a
+   close X, tabs along the top, the tab's entries down the left in dark inset rows and the entry's
+   items on the right, dimmed till they're obtained */
 
 .ui-log {
-    width: min(920px, calc(94vw / var(--ui-scale)));
-    max-height: calc(92vh / var(--ui-scale));
+    width: min(780px, calc(94vw / var(--ui-scale)));
+    height: min(580px, calc(92vh / var(--ui-scale)));
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
+    gap: 4px;
 }
 
-.ui-log > h2,
-.ui-log > .ui-subtle,
-.ui-log > .ui-row {
+/* The title, the tabs and the X, which comes after the tabs in the page but is drawn on the
+   title's row */
+.ui-log-top {
     flex-shrink: 0;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.ui-log-head {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 28px;
+}
+
+.ui-log .ui-log-title {
+    margin: 0;
+    padding: 0 36px;
+    font-family: "OSRS Bold", sans-serif;
+    font-size: 17px;
+    font-weight: normal;
+    color: var(--ui-orange);
+    text-align: center;
+}
+
+/* As tall as the title's row, its sprite centred in it */
+.ui-log-close {
+    position: absolute;
+    right: 0;
+    top: 0;
+    width: 26px;
+    height: 28px;
+    padding: 0;
+    font: inherit;
+    font-family: "OSRS Bold", sans-serif;
+    color: var(--ui-text);
+    cursor: pointer;
+    background: var(--ui-card);
+    border: 1px solid #000;
+}
+
+.ui-log-close-sprite {
+    background: var(--rs-close) center / 26px 23px no-repeat;
+    border: none;
+    image-rendering: pixelated;
+}
+
+.ui-log-close-sprite:focus-visible {
+    background-image: var(--rs-close-lit);
+}
+
+/* Not on a touch screen, where a tap would leave it lit */
+@media (hover: hover) {
+    .ui-log-close-sprite:hover {
+        background-image: var(--rs-close-lit);
+    }
 }
 
 .ui-log-tabs {
     flex-shrink: 0;
     display: flex;
-    /* A tab for each place with finds: onto a second row on a narrow screen */
-    flex-wrap: wrap;
-    gap: 4px;
-    margin-bottom: 4px;
+    gap: 2px;
 }
 
 .ui-log-tab {
+    flex: 1 1 0;
+    min-width: 0;
     min-height: 28px;
-    padding: 2px 10px;
+    padding: 2px 4px;
     font: inherit;
-    color: inherit;
+    font-family: "OSRS Bold", sans-serif;
+    color: var(--ui-orange);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
     cursor: pointer;
-    background: rgba(40, 33, 24, 0.45);
+    background: #2b251d;
     border: 1px solid #000;
-    box-shadow: inset 0 0 0 1px rgba(107, 94, 74, 0.6);
+    border-bottom-color: #4a4033;
+    box-shadow: inset 1px 1px 0 #4a4033;
+}
+
+.ui-log-tab:hover {
+    background: #3a3227;
 }
 
 .ui-log-tab.ui-log-selected {
-    color: var(--ui-orange);
-    border-color: var(--ui-orange);
-    background: rgba(40, 33, 24, 0.8);
+    color: var(--ui-white);
+    background: #4a4033;
+    box-shadow: inset 1px 1px 0 #6b5e4a;
 }
 
-.ui-log-list {
+.ui-log-body {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    gap: 4px;
+}
+
+/* The client's dark, black-edged boxes the list and the page sit in */
+.ui-log-inset {
+    background: rgba(20, 16, 11, 0.55);
+    border: 1px solid #000;
+    box-shadow: inset 0 0 0 1px #4a4033;
+}
+
+.ui-log-entries {
+    flex: 0 0 220px;
     min-height: 0;
     overflow-y: auto;
-    padding-right: 4px;
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 3px;
+    display: flex;
+    flex-direction: column;
+    padding: 2px;
 }
 
-.ui-log-card {
+.ui-log-entry {
+    flex-shrink: 0;
     display: flex;
     align-items: center;
-    gap: 8px;
-    min-width: 0;
-    padding: 0 6px;
+    gap: 6px;
+    min-height: 22px;
+    padding: 1px 6px;
     font: inherit;
-    color: inherit;
+    color: var(--ui-orange);
     text-align: left;
     cursor: pointer;
-    background: rgba(40, 33, 24, 0.45);
-    border: 1px solid #000;
-    box-shadow: inset 0 0 0 1px rgba(107, 94, 74, 0.6);
+    background: transparent;
+    border: none;
 }
 
-.ui-log-card.ui-log-selected {
-    border-color: var(--ui-orange);
-    background: rgba(40, 33, 24, 0.8);
+/* Alternate rows a shade apart, as the client's list is */
+.ui-log-entry:nth-child(even) {
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.ui-log-entry:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.ui-log-entry.ui-log-selected {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.ui-log-entry-complete {
+    color: var(--ui-green-text);
+}
+
+.ui-log-entry-name {
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* A tick beside a complete entry, so it's not only told by its green */
+.ui-log-check {
+    flex-shrink: 0;
+    width: 4px;
+    height: 9px;
+    margin: 0 3px 3px 0;
+    border: solid currentColor;
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+    filter: drop-shadow(1px 1px 0 #000);
+}
+
+/* The entries as a dropdown, on a narrow screen only */
+.ui-log-entry-select {
+    display: none;
+}
+
+/* Its head and the description stay put; the items between them scroll */
+.ui-log-page {
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    padding: 6px 8px;
+}
+
+.ui-log-page-head {
+    flex-shrink: 0;
+    padding-bottom: 4px;
+    margin-bottom: 6px;
+    border-bottom: 1px solid var(--ui-divider);
+}
+
+.ui-log .ui-log-page-title {
+    margin: 0 0 2px;
+    font-family: "OSRS Bold", sans-serif;
+    font-size: 17px;
+    font-weight: normal;
+    color: var(--ui-orange);
+}
+
+/* A count's colour: none red, some yellow, all green */
+.ui-log-none {
+    color: var(--ui-red-text);
+}
+
+.ui-log-some {
+    color: var(--ui-yellow);
+}
+
+.ui-log-all {
+    color: var(--ui-green-text);
+}
+
+.ui-log-grid {
+    flex: 0 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, 42px);
+    align-content: start;
+    gap: 2px;
+}
+
+.ui-log-item {
+    position: relative;
+    width: 42px;
+    height: 38px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font: inherit;
+    cursor: pointer;
+    background: transparent;
+    border: 1px solid transparent;
+}
+
+/* Not obtained: shown faded, as the client shows it */
+.ui-log-item:not(.ui-log-item-found) > .ui-icon {
+    opacity: 0.35;
+    filter: grayscale(0.6);
+}
+
+.ui-log-item:hover,
+.ui-log-item.ui-log-selected {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.ui-log-item.ui-log-selected {
+    border-color: rgba(255, 255, 255, 0.45);
+}
+
+/* How many, in the client's yellow at the icon's top left */
+.ui-log-qty {
+    position: absolute;
+    top: 0;
+    left: 2px;
+    font-size: 14px;
+    line-height: 14px;
+    color: var(--ui-yellow);
+    pointer-events: none;
+}
+
+/* The ? on an evolution not made yet, over the weapon that evolves */
+.ui-log-unknown {
+    position: absolute;
+    right: 3px;
+    bottom: 0;
+    font-family: "OSRS Bold", sans-serif;
+    font-size: 18px;
+    line-height: 18px;
+    color: var(--ui-orange);
+    text-shadow: 1px 1px 0 #000;
+    pointer-events: none;
+}
+
+.ui-log-detail {
+    flex-shrink: 0;
+    margin-top: auto;
+    padding-top: 6px;
+    font-size: 15px;
+    border-top: 1px solid var(--ui-divider);
+}
+
+.ui-log-name-missing {
+    color: var(--ui-text-dim);
+}
+
+.ui-log-state,
+.ui-log-how {
+    color: var(--ui-text-dim);
 }
 
 .ui-log-recipe {
     display: flex;
     align-items: center;
-    gap: 2px;
-    flex-shrink: 0;
+    gap: 4px;
 }
 
 .ui-log-sign {
     color: var(--ui-orange);
 }
 
-.ui-log-text {
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
-}
+/* A narrow window, or a phone held upright (the rotate notice's 700px): the entries become a
+   dropdown over the page */
+@media (max-width: 600px), (pointer: coarse) and (orientation: portrait) and (max-width: 700px) {
+    .ui-log {
+        width: calc(100vw - var(--safe-left, 0px) - var(--safe-right, 0px) - 12px);
+        height: calc(100dvh - var(--safe-top, 0px) - var(--safe-bottom, 0px) - 12px);
+    }
 
-.ui-log-name,
-.ui-log-parts {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
+    .ui-log .ui-log-title {
+        font-size: 15px;
+    }
 
-.ui-log-parts {
-    font-size: 13px;
-    color: var(--ui-text-dim);
-}
+    .ui-log-tab {
+        padding: 2px 1px;
+        font-size: 13px;
+    }
 
-.ui-log-hidden {
-    color: var(--ui-text-dim);
-}
+    .ui-log-body {
+        flex-direction: column;
+    }
 
-.ui-log-unknown {
-    width: 30px;
-    height: 30px;
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 20px;
-    color: var(--ui-orange);
-    background: rgba(40, 33, 24, 0.85);
-    box-shadow: inset 0 0 0 1px rgba(107, 94, 74, 0.6);
-}
+    .ui-log-entries {
+        display: none;
+    }
 
-.ui-log-detail {
-    flex-shrink: 0;
-    min-height: 48px;
-    margin-top: 6px;
-    padding-top: 4px;
-    font-size: 14px;
-    border-top: 1px solid var(--ui-divider);
-}
-
-.ui-log-stats {
-    color: var(--ui-text-dim);
-}
-
-.ui-log-count {
-    color: var(--ui-orange);
-}
-
-@media (max-width: 760px) {
-    .ui-log-list {
-        grid-template-columns: minmax(0, 1fr);
+    .ui-log-entry-select {
+        display: block;
+        flex-shrink: 0;
+        min-height: 36px;
+        padding: 0 6px;
+        font: inherit;
+        color: var(--ui-orange);
+        background: #2b251d;
+        border: 1px solid #000;
+        box-shadow: inset 0 0 0 1px #4a4033;
     }
 }

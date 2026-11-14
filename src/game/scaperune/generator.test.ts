@@ -413,7 +413,16 @@ describe("generateMap", () => {
 
 // Against the game's real collision and the real prefabs, when there's a cache.
 // In a script, because the cache's loaders don't load under vitest.
-describe.skipIf(!existsSync(`caches/${GAME_CACHE_NAME}`))("generated maps", () => {
+// Opt-in, as they take minutes: `bun run test:maps` (MAP_CHECKS=1) after a change to ScapeRune, a
+// map, collision, scenery loading or the cache, and the release workflow every time. A plain
+// `bun run test` leaves them out.
+const mapChecks = process.env.MAP_CHECKS === "1";
+const hasCache = existsSync(`caches/${GAME_CACHE_NAME}`);
+// Asked for with no cache to run them on: fail, rather than pass with all of them skipped
+it.runIf(mapChecks && !hasCache)("have the game's cache to run the map checks on", () => {
+    throw new Error(`MAP_CHECKS=1 needs caches/${GAME_CACHE_NAME}: bun run download-caches`);
+});
+describe.skipIf(!mapChecks || !hasCache)("generated maps", () => {
     // Not to block the test runner, which gives up on a worker that goes quiet for a minute
     const run = promisify(execFile);
     // Node itself, as Windows has no plain `npx` to start

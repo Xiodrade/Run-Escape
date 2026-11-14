@@ -83,9 +83,12 @@ version and how to run it.
   damage. Most other class weapons, like the Toxic blowpipe and the Thunder khopesh, don't evolve.
   Level up cards say what evolves with what, the HUD and pause menu show how close a weapon is and
   its slot glows gold once it's ready, and the **Collection log** on the title screen lists every
-  recipe, keeping what it makes as ??? until you've made it. It has a tab for each place with
-  finds of its own (the Hallowed Night, the Theatre of Blood, the Tombs of Amascut, Justiciar
-  Zachariah, Phosani's Nightmare): the weapons it brings in, then its trophies.
+  recipe, keeping what it makes as ??? until you've made it. It's laid out as OSRS's is, with
+  Bosses, Raids, Clues, Minigames and Other tabs. Each place with finds of its own has an entry
+  (the boss fights and Act II's maps under Bosses, the Theatre of Blood and the Tombs of Amascut
+  under Raids, the Hallowed Night and Thanksgiving Harvest under Minigames): the weapons it brings
+  in, then its trophies. Clues has the gear reward caskets hold, by rarity, and Other the
+  evolutions, each shown as the weapon that evolves until it's been made.
 - **Style prayers**: **Chivalry** makes slashes and sweeps hit harder and adds max hitpoints for
   fighting up close, **Rigour** makes arrows, bolts and thrown weapons hit harder, and
   **Augury** makes spells hit harder and their effects last longer.
@@ -377,7 +380,7 @@ version and how to run it.
   (the Scar's, only in it; weapons aim only at what's lit in it). A rule a remix has on already
   doesn't come; with all four on, nothing does. Each invader's kit leaves out its summons and what
   needs its own map (the Duke's vents and gaze). Its kill drops a master casket and 100 to 200
-  coins, and counts on its Act II map's Collection log tab (`SaveData.invasions`).
+  coins, and counts on its Act II map's Collection log entry (`SaveData.invasions`).
 - **Awakener's orbs** (`SaveData.awakenerOrbs`, object 28334): each Awakened fight won gives one
   (the gauntlet's first clears two, its fights none). On a campaign map's card (solo, not endless)
   the orb's switch awakens its final boss for one run: 1.6 times its hitpoints, enraged from 75%,
