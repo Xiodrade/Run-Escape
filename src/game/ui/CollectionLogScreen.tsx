@@ -101,30 +101,34 @@ export function CollectionLogScreen({ ui, client }: Props): JSX.Element {
                 role="dialog"
                 aria-labelledby="ui-log-title"
             >
-                <div className="ui-log-head">
-                    <h2 id="ui-log-title" className="ui-log-title">
-                        {t("collection.title_count", {
-                            title: t("collection.title"),
-                            n: fmtNum(total.found),
-                            total: fmtNum(total.total),
-                        })}
-                    </h2>
+                {/* The X comes after the tabs, drawn on the title's row, so a pad's first
+                    highlight and the first Tab are the open tab, not the way out */}
+                <div className="ui-log-top">
+                    <div className="ui-log-head">
+                        <h2 id="ui-log-title" className="ui-log-title">
+                            {t("collection.title_count", {
+                                title: t("collection.title"),
+                                n: fmtNum(total.found),
+                                total: fmtNum(total.total),
+                            })}
+                        </h2>
+                    </div>
+                    <div className="ui-log-tabs" role="group" aria-label={t("collection.tabs")}>
+                        {tabs.map((id) => (
+                            <button
+                                key={id}
+                                className={"ui-log-tab" + (id === tab ? " ui-log-selected" : "")}
+                                aria-pressed={id === tab}
+                                onClick={(event) => {
+                                    openTab(id);
+                                    releaseFocus(event);
+                                }}
+                            >
+                                {t(`collection.tab.${id}`)}
+                            </button>
+                        ))}
+                    </div>
                     <CloseButton onClose={close} />
-                </div>
-                <div className="ui-log-tabs" role="group" aria-label={t("collection.tabs")}>
-                    {tabs.map((id) => (
-                        <button
-                            key={id}
-                            className={"ui-log-tab" + (id === tab ? " ui-log-selected" : "")}
-                            aria-pressed={id === tab}
-                            onClick={(event) => {
-                                openTab(id);
-                                releaseFocus(event);
-                            }}
-                        >
-                            {t(`collection.tab.${id}`)}
-                        </button>
-                    ))}
                 </div>
                 <div className="ui-log-body">
                     <div

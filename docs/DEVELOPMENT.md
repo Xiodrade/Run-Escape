@@ -2853,11 +2853,16 @@ of its own.
   real key or click tells it the player's off the pad.
 - **Menus** use the focus: the d-pad or stick moves it to the nearest button that way in the top
   `.ui-modal` (or the screen), and the bottom button clicks it. With nothing focused it sends Enter
-  and focuses the `.ui-button-go` or first button, so a press as a level up appears can't pick one. Start
-  clicks the `.ui-button-go` (Enter the map, Resume, a casket's best choice) wherever the focus is,
-  so starting a run doesn't mean walking the highlight across the screen. A click can't open a
-  dropdown (`<select>`), so left and right step through its options while it's highlighted (the
-  Collection log's entries on a narrow screen), and up and down move on.
+  and focuses the `.ui-button-go` or first button, so a press as a level up appears can't pick
+  one. The first button is the screen's own: the game's canvas behind it is no stop for the
+  highlight or for Tab (`RendererCanvas`'s `focusable={false}`, as the game reads its keys from the
+  window), though a click still focuses it. So keep a screen's way out (Back, an X) after what's on
+  it in the page, or the first press lands there and a second leaves: the Collection log's X comes
+  after its tabs, drawn on the title's row. Start clicks the `.ui-button-go` (Enter the map,
+  Resume, a casket's best choice) wherever the focus is, so starting a run doesn't mean walking
+  the highlight across the screen. A click can't open a dropdown (`<select>`), so left and right
+  step through its options while it's highlighted (the Collection log's entries on a narrow
+  screen), and up and down move on.
 - **Hints.** `ui/PadHint.tsx`'s `KeyHint` shows a key, or the pad's button while one's in use. The
   numbered choices have none (the d-pad picks them). `:root[data-input="pad"]` shows the highlight.
   The icons are Kenney's [Input Prompts](https://kenney.nl/assets/input-prompts) (CC0, its licence
