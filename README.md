@@ -116,6 +116,7 @@ doesn't recognise the layout of only moves.
 
 ```sh
 bun run test               # the game's tests (vitest)
+bun run test:maps          # ScapeRune's tests with its long map checks (needs the game's cache)
 bun run tsc --noEmit -p .  # type check
 bun run lint               # format everything with Prettier
 ```
@@ -180,7 +181,8 @@ if you work with one.
 - Base your branch on the current `release-<version>` branch (or `main` if there isn't one), and
   point the pull request at it.
 - Format what you changed with Prettier (`bun run prettier --write <files>`), and keep
-  `bun run test` and the type check passing.
+  `bun run test` and the type check passing. A change to maps or collision needs
+  `bun run test:maps` passing too (PR-REVIEW.md says when).
 - Content is plain data in `src/game/content/`, with real cache ids; the tools in `scripts/cache/`
   find them. Say in the pull request if it uses anything new from the cache.
 - Note what you change under Unreleased in [CHANGELOG.md](CHANGELOG.md). It's written for players,

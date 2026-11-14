@@ -238,7 +238,7 @@ export function GameApp(): JSX.Element {
 
     return (
         <div className="game-root">
-            {loaded && <RendererCanvas renderer={loaded.renderer} />}
+            {loaded && <RendererCanvas renderer={loaded.renderer} focusable={false} />}
             <canvas className="game-overlay" ref={overlayRef} />
             {errorMessage ? (
                 <div className="game-status game-status-lost content-text">

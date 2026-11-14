@@ -112,7 +112,10 @@ jobs:
                   path: caches
                   key: osrs-cache-${{ steps.game-cache.outputs.name }}
 
+            # MAP_CHECKS: generator.test.ts's long map checks too, which a plain test run leaves out
             - run: bun run test
+              env:
+                  MAP_CHECKS: "1"
             # Where desktop and Android players find co-op: the COOP_URL repository variable,
             # wss://example.com/coop. Without it, the app has no Multiplayer.
             - run: bun run build

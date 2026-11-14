@@ -3,11 +3,13 @@ import { act, cleanup, fireEvent, render, screen, within } from "@testing-librar
 
 import type { GameClient } from "../client/GameClient";
 import { GameStore } from "../client/GameStore";
+import type { RoomView } from "../client/coop/protocol";
 import { FALLEN_EMPIRE, isActOut } from "../content/acts";
 import { getCharacter } from "../content/characters";
 import { CombatStyle } from "../content/types";
 import { buyUpgrade, createSave, refundUpgrade, refundUpgrades } from "../core/save";
 import { GameUi } from "./GameUi";
+import { PHONE_QUERY } from "./usePhoneLayout";
 
 vi.mock("@foxglove/wasm-bz2/wasm/module.wasm?url", () => ({ default: "" }));
 
@@ -280,6 +282,7 @@ function renderMaps(mapId = "lumbridge", save = createSave()) {
         selectMap: vi.fn((id: string) => store.set({ mapId: id })),
         selectCharacter: vi.fn((id: string) => store.set({ characterId: id })),
         startRun: vi.fn(),
+        showScreen: vi.fn(),
         toggleFavouriteCharacter: vi.fn(),
         playClick: vi.fn(),
         selectPet: vi.fn(),
@@ -289,6 +292,141 @@ function renderMaps(mapId = "lumbridge", save = createSave()) {
     render(<GameUi store={store} client={actions as unknown as GameClient} />);
     return actions;
 }
+
+// A phone held sideways, as Mobile.css's query sees it (jsdom has no matchMedia of its own)
+function asPhone(): void {
+    vi.stubGlobal(
+        "matchMedia",
+        (query: string) =>
+            ({
+                matches: query === PHONE_QUERY,
+                media: query,
+                addEventListener: () => {},
+                removeEventListener: () => {},
+            }) as unknown as MediaQueryList,
+    );
+}
+
+test("a phone sets a run up from what's picked, with each list over the whole screen", () => {
+    expect.hasAssertions();
+    asPhone();
+    try {
+        const actions = renderMaps();
+        const press = (code: string) => fireEvent.keyDown(window, { code });
+        // What's picked, and no list till a card's opened
+        expect(screen.queryByRole("tablist")).toBeNull();
+        expect(screen.getByRole("button", { name: /Enter Lumbridge/ })).toBeInTheDocument();
+        fireEvent.click(screen.getByRole("button", { name: "Change map: Lumbridge" }));
+        fireEvent.click(screen.getByRole("tab", { name: "Bosses" }));
+        fireEvent.click(screen.getByRole("button", { name: "Theatre of Blood" }));
+        expect(actions.selectMap).toHaveBeenCalledExactlyOnceWith("theatre_of_blood");
+        // Picking keeps the list open, to read about what's picked; Done goes back
+        fireEvent.click(screen.getByRole("button", { name: "Done" }));
+        expect(screen.queryByRole("tablist")).toBeNull();
+        expect(screen.getByRole("button", { name: "Change map: Theatre of Blood" })).toBeVisible();
+        expect(screen.getByRole("button", { name: /Enter Theatre of Blood/ })).toBeInTheDocument();
+        // The adventurers, with their pet and relics, the same way
+        const other = getCharacter(createSave().unlockedCharacters[1]);
+        fireEvent.click(screen.getByRole("button", { name: /^Change adventurer: / }));
+        fireEvent.click(screen.getByRole("button", { name: other.name }));
+        expect(actions.selectCharacter).toHaveBeenCalledExactlyOnceWith(other.id);
+        fireEvent.click(screen.getByRole("button", { name: "Done" }));
+        expect(
+            screen.getByRole("button", { name: `Change adventurer: ${other.name}` }),
+        ).toBeVisible();
+        // A list's Escape and Enter only close it; the run setup's go back and start
+        fireEvent.click(screen.getByRole("button", { name: /^Change map: / }));
+        press("Escape");
+        expect(screen.queryByRole("tablist")).toBeNull();
+        fireEvent.click(screen.getByRole("button", { name: /^Change map: / }));
+        press("Enter");
+        expect(screen.queryByRole("tablist")).toBeNull();
+        expect(actions.startRun).not.toHaveBeenCalled();
+        expect(actions.showScreen).not.toHaveBeenCalled();
+        press("Enter");
+        expect(actions.startRun).toHaveBeenCalledOnce();
+        press("Escape");
+        expect(actions.showScreen).toHaveBeenCalledExactlyOnceWith("title");
+    } finally {
+        vi.unstubAllGlobals();
+    }
+}, 30000);
+
+function renderRoom(you: string) {
+    const store = new GameStore(createSave());
+    const room: RoomView = {
+        code: "TESTROOM",
+        name: "Party",
+        open: false,
+        hostId: "alice",
+        mapId: "lumbridge",
+        endless: false,
+        hard: false,
+        started: false,
+        members: [
+            { id: "alice", name: "Alice", characterId: "warrior", ready: false },
+            { id: "bob", name: "Bob", characterId: "wizard", ready: true },
+        ],
+    };
+    const setRoom = (change: Partial<RoomView>) => {
+        const coop = store.getSnapshot().coop;
+        store.set({ coop: { ...coop, room: { ...coop.room!, ...change } } });
+    };
+    store.set({ screen: "coop", coop: { ...store.getSnapshot().coop, you, anyMap: true, room } });
+    const actions = {
+        selectMap: vi.fn((mapId: string) => setRoom({ mapId })),
+        selectCharacter: vi.fn((id: string) => store.set({ characterId: id })),
+        setCoopReady: vi.fn(),
+        startCoopRun: vi.fn(),
+        leaveRoom: vi.fn(),
+        toggleFavouriteCharacter: vi.fn(),
+        playClick: vi.fn(),
+    };
+    render(<GameUi store={store} client={actions as unknown as GameClient} />);
+    return actions;
+}
+
+test("a phone's co-op room opens the same lists, and only the host's map card opens one", () => {
+    expect.hasAssertions();
+    asPhone();
+    try {
+        const actions = renderRoom("alice");
+        const press = (code: string) => fireEvent.keyDown(window, { code });
+        // The party, the map and your adventurer, and no list till a card's opened
+        expect(screen.getByText("Bob")).toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: "Theatre of Blood" })).toBeNull();
+        fireEvent.click(screen.getByRole("button", { name: "Change map: Lumbridge" }));
+        fireEvent.click(screen.getByRole("button", { name: "Theatre of Blood" }));
+        expect(actions.selectMap).toHaveBeenCalledExactlyOnceWith("theatre_of_blood");
+        fireEvent.click(screen.getByRole("button", { name: "Done" }));
+        expect(screen.queryByRole("button", { name: "Lumbridge" })).toBeNull();
+        expect(screen.getByRole("button", { name: "Change map: Theatre of Blood" })).toBeVisible();
+        const other = getCharacter(createSave().unlockedCharacters[1]);
+        fireEvent.click(screen.getByRole("button", { name: /^Change adventurer: / }));
+        fireEvent.click(screen.getByRole("button", { name: other.name }));
+        expect(actions.selectCharacter).toHaveBeenCalledExactlyOnceWith(other.id);
+        // Escape and Enter close a list, and nothing else
+        press("Escape");
+        expect(
+            screen.getByRole("button", { name: `Change adventurer: ${other.name}` }),
+        ).toBeVisible();
+        fireEvent.click(screen.getByRole("button", { name: /^Change map: / }));
+        press("Enter");
+        expect(screen.queryByRole("button", { name: "Lumbridge" })).toBeNull();
+        expect(actions.leaveRoom).not.toHaveBeenCalled();
+        expect(actions.setCoopReady).not.toHaveBeenCalled();
+        expect(actions.startCoopRun).not.toHaveBeenCalled();
+        cleanup();
+        // A guest sees the host's map, and can't open the list
+        renderRoom("bob");
+        expect(screen.getByText("Lumbridge")).toBeInTheDocument();
+        expect(screen.getByText("picked by the host")).toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: /^Change map: / })).toBeNull();
+        expect(screen.getByRole("button", { name: /^Change adventurer: / })).toBeVisible();
+    } finally {
+        vi.unstubAllGlobals();
+    }
+}, 30000);
 
 test("the map screen opens on the picked map's tab, and a map on another tab can be picked", () => {
     expect.hasAssertions();

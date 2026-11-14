@@ -1,6 +1,6 @@
 {
     "name": "run-escape",
-    "version": "0.32.1",
+    "version": "0.32.2",
     "packageManager": "bun@1.3.14",
     "private": true,
     "description": "A Vampire Survivors style fan game in the Old School RuneScape world",
@@ -40,6 +40,7 @@
         "start:singleplayer": "vite",
         "build": "vite build",
         "test": "vitest run",
+        "test:maps": "MAP_CHECKS=1 vitest run src/game/scaperune",
         "preview": "vite preview",
         "serve": "node server/serve.mjs",
         "serve:singleplayer": "node server/serve.mjs",

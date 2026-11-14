@@ -331,9 +331,10 @@ Add it to `MAPS` in `maps.ts` (fun maps go in `fun/maps.ts`), with its waves in 
   Its slot on the act (`ActSlotDef`) names its Awakened fight (`fightId`): the act's ending
   (`ActDef.ending`) is told once every slot's fight is beaten (`isActEnded`, `takeActEnding`).
   An act stays hidden and its maps locked until `ActDef.released` (`isActOut`), with what they
-  bring in: an adventurer they unlock (`isCharacterOut`) and the Collection log's tab for their
-  finds. Anywhere new that lists maps, adventurers or finds needs the same check. The dev server
-  shows an act that isn't out with `?devtools`; sims and tests play it either way.
+  bring in: an adventurer they unlock (`isCharacterOut`) and the Collection log's entry for
+  their finds, and the casket gear and evolutions brought in there. Anywhere new that lists
+  maps, adventurers or finds needs the same check. The dev server shows an act that isn't out
+  with `?devtools`; sims and tests play it either way.
 - `rule` is what the map's played by (`RunRuleDef`, `core/rules/`): the sim runs it each tick on
   its own Rng, so nothing else about a run changes. A rule only reads the grid and its def, never
   a map's own data, so it can go on any map. A new kind needs a class implementing `RunRule`, a
@@ -412,10 +413,11 @@ of power needs its case there and its line on the Pet row (`ui.pet.power_<kind>`
 `docs/DEVELOPMENT.md`.
 
 A trophy (`trophies.ts`) shows in the Collection log under the map its `from` names (a pumpkin's
-under the Hallowed Night), with a tab of its own for a new map, and so do weapons whose `unlock`
-names that map (`content/collectionLog.ts`). A boss fight map (`MapDef.fight`) whose boss brings
-in a weapon gets a tab too, trophy or not; a campaign map's boss drops don't. The Tombs of Amascut's
-chest's are under the raid.
+under the Hallowed Night), with an entry of its own for a new map, and so do weapons whose
+`unlock` names that map (`content/collectionLog.ts`). A boss fight map (`MapDef.fight`) whose
+boss brings in a weapon gets an entry too, trophy or not; a campaign map's boss drops don't. The
+Tombs of Amascut's chest's are under the raid. `getMapTab` files each entry under a tab (Bosses,
+Raids, Minigames) by what kind of map it is: a new kind of map needs a place there.
 
 ## Text and languages
 

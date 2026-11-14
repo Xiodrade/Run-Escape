@@ -1,6 +1,7 @@
 # Checks a pull request: the type check and the tests, without the game's
-# cache (generator.test.ts skips its long map check without it). The release
-# workflow (release.yml) runs the tests with the cache, on Windows.
+# cache (generator.test.ts skips its long map checks without it, and without
+# MAP_CHECKS=1). The release workflow (release.yml) runs the tests with the
+# cache and the map checks, on Windows.
 name: Check
 
 on:

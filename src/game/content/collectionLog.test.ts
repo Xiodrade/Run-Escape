@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { createSave } from "../core/save";
 import { isMapOut } from "./acts";
@@ -14,9 +14,20 @@ import { EVOLUTIONS } from "./evolutions";
 import { CASKET_GEAR } from "./items";
 import { MAP_BY_ID, getMap } from "./maps";
 import { TROPHIES } from "./trophies";
+import { MapDef } from "./types";
+
+// Maps a test hides, as an act that isn't out hides its own (the rest are as acts.ts has them)
+const hiddenMaps = vi.hoisted(() => new Set<string>());
+vi.mock("./acts", async (importOriginal) => {
+    const acts = await importOriginal<typeof import("./acts")>();
+    return {
+        ...acts,
+        isMapOut: (map: MapDef) => !hiddenMaps.has(map.id) && acts.isMapOut(map),
+    };
+});
 
 describe("the Collection log's rewards", () => {
-    it("has a tab for each map with trophies, the Theatre of Blood's as well as the Hallowed Night's", () => {
+    it("has an entry for each map with trophies, the Theatre of Blood's as well as the Hallowed Night's", () => {
         expect(REWARD_MAPS).toContain("halloween");
         expect(REWARD_MAPS).toContain("theatre_of_blood");
         expect(REWARD_MAPS).toContain("thanksgiving");
@@ -52,7 +63,7 @@ describe("the Collection log's rewards", () => {
         );
     });
 
-    it("has a tab for a boss fight that brings in a weapon, with no trophy: Phosani's staff", () => {
+    it("has an entry for a boss fight that brings in a weapon, with no trophy: Phosani's staff", () => {
         expect(REWARD_MAPS).toContain("phosani");
         expect(getRewards(createSave(), "phosani").map((r) => r.id)).toContain("nightmare_staff");
     });
@@ -144,14 +155,13 @@ describe("the Collection log's tabs, as OSRS's client has them", () => {
         expect(tabs.get("clues_common")).toBe("clues");
     });
 
-    it("keeps every map's rewards, every casket's gear and every evolution, in tab order", () => {
-        const save = createSave();
-        const entries = getLogEntries(save);
-        for (const mapId of REWARD_MAPS) {
-            const entry = entries.find((e) => e.id === mapId)!;
-            expect(entry.items.map((item) => item.id)).toEqual(
-                getRewards(save, mapId).map((r) => r.id),
-            );
+    it("lists every reward map once, every casket's gear and every evolution, in tab order", () => {
+        const entries = getLogEntries(createSave());
+        const mapEntries = entries.filter((entry) => MAP_BY_ID.has(entry.id));
+        expect(mapEntries.map((entry) => entry.id).sort()).toEqual([...REWARD_MAPS].sort());
+        // Each kind of map has a tab of its own: none's left among the evolutions
+        for (const entry of mapEntries) {
+            expect(entry.tab, entry.id).not.toBe("other");
         }
         const clueIds = entries
             .filter((entry) => entry.tab === "clues")
@@ -180,5 +190,21 @@ describe("the Collection log's tabs, as OSRS's client has them", () => {
             .filter((entry) => entry.id !== "cards_raids")
             .flatMap((entry) => entry.items.map((item) => item.key));
         expect(new Set(keys).size).toBe(keys.length);
+    });
+
+    it("leaves out casket gear and evolutions brought in on a map that isn't out yet", () => {
+        const gear = CASKET_GEAR.find((piece) => piece.unlock)!;
+        const evolution = EVOLUTIONS.find((e) => e.weapons.some((weapon) => weapon.unlock))!;
+        const evolvesFrom = evolution.weapons.find((weapon) => weapon.unlock)!;
+        const ids = () => getLogEntries(createSave()).flatMap((e) => e.items.map((i) => i.id));
+        expect(ids()).toEqual(expect.arrayContaining([gear.id, evolution.into.id]));
+        hiddenMaps.add(gear.unlock!.mapId);
+        hiddenMaps.add(evolvesFrom.unlock!.mapId);
+        try {
+            expect(ids()).not.toContain(gear.id);
+            expect(ids()).not.toContain(evolution.into.id);
+        } finally {
+            hiddenMaps.clear();
+        }
     });
 });

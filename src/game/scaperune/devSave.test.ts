@@ -7,6 +7,8 @@ describe("a run on a development map", () => {
         vi.stubEnv("DEV_MAPS", "1");
     });
 
+    // Importing the save and every map fresh takes most of the default 5 seconds on its own, and
+    // more beside the map checks, so it gets longer
     it("leaves the save as it was, and a run on a real map doesn't", async () => {
         const { createSave, isEndlessRecord, recordRun } = await import("../core/save");
         const { isDevMap } = await import("../content/maps");
@@ -35,5 +37,5 @@ describe("a run on a development map", () => {
         expect(save.runs).toBe(1);
         expect(save.coins).toBeGreaterThanOrEqual(400);
         expect(Object.keys(save.endlessBest)).toEqual(["lumbridge"]);
-    });
+    }, 30000);
 });

@@ -1,6 +1,6 @@
 // Prints a SHA-256 of what a recipe writes, square by square and for the whole map, so that a
 // change meant to leave a map alone can prove it did. Shipped maps mustn't move: CHECK=1 holds
-// each one to its hash below, and generator.test.ts runs that when the cache is there.
+// each one to its hash below, and `bun run test:maps` runs that (generator.test.ts).
 //
 //   bun run tsx scripts/scaperune/grid-hash.ts halloween [scaperune_ysmar ...]
 //   VERBOSE=1 bun run tsx scripts/scaperune/grid-hash.ts halloween    # each square's too

@@ -111,6 +111,7 @@ go stale. Add anything that cost you time to work out.
 | 3D actors, swooshes, hitsplats                         | `src/game/client/GameView.ts`                                          |
 | Actors' frames, baked as positions on a shared mesh    | `actor/ActorBakeFrames.ts`, `actor.vert.glsl`, `check-actor-frames.ts` |
 | Touch screens: the stick, its buttons, phone layouts   | `docs/DEVELOPMENT.md`, Touch screens                                   |
+| A phone's run setup and co-op room: cards, whole lists | `GameUi.tsx` (`PhoneSetup`), `CoopScreen.tsx`, `ui/usePhoneLayout.ts`  |
 | Controllers: which pad, its buttons, menus' highlight  | `docs/DEVELOPMENT.md`, Controllers                                     |
 | The game on a phone's home screen (PWA)                | `docs/DEVELOPMENT.md`, Touch screens                                   |
 | React screens and the HUD                              | `src/game/ui/GameUi.tsx`                                               |
@@ -176,6 +177,7 @@ bun run download-caches    # the game's cache, into caches/
 bun run start              # dev server on http://localhost:5173, with co-op's relay
 bun run start:singleplayer # the same without it (or MULTIPLAYER=off): no Multiplayer button
 bun run test               # vitest
+bun run test:maps          # ScapeRune's tests with its long map checks (needs the cache)
 bun run tsc --noEmit -p .  # type check
 bun run prettier --write <files>
 bun run build && bun run slim-cache    # build for hosting (only when deploying)
@@ -190,7 +192,9 @@ There's no pre-commit hook, so run Prettier yourself. `bun run lint` formats the
 
 ## After every change
 
-1. Run the tests and the type check, and format what you changed.
+1. Run the tests and the type check, and format what you changed. After a change to ScapeRune, a
+   map, collision, how a map's scenery loads or the cache, run `bun run test:maps` too (which
+   folders count is in `docs/PR-REVIEW.md`).
 2. **Run a simulation if the change can affect gameplay or balance** (see below).
 3. **If you added anything from the cache** (an item, enemy, map, animation or sprite), say so in the
    pull request. Leave `bun run slim-cache` for deployment, after every build. It takes time and
@@ -272,8 +276,8 @@ bun run tsx scripts/game/check-lairs.ts           # every lair's boss has room w
 the game's cache. The release workflow runs the tests with it, and a failure there stops the
 desktop build.
 
-- **It runs everything, on a busy machine.** It has the game's cache, so `generator.test.ts` runs
-  its long map check. A test that takes a few seconds on your machine can pass the 5 second limit
+- **It runs everything, on a busy machine.** It has the game's cache and sets `MAP_CHECKS=1`, so
+  `generator.test.ts` runs its long map checks too. A test that takes a few seconds on your machine can pass the 5 second limit
   there, so give a long one its own timeout.
 - **"Exit code 1" with no failed test named** means an error with no stack in our code, which
   vitest's annotations leave out. `Timeout calling "onTaskUpdate"` is one: a worker went a minute

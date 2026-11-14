@@ -6,18 +6,18 @@ import { CARDS, CARD_KINDS, CardDef, PACK_BY_ID, packCards } from "./cards";
 import { EVOLUTIONS, EvolutionDef } from "./evolutions";
 import { INVADERS } from "./invaders";
 import { invaderName } from "./invasions";
-import { CASKETS, CASKET_GEAR, CASKET_TIERS } from "./items";
-import { FIGHT_MAPS, MAP_BY_ID, RAID_MAPS, getMap } from "./maps";
+import { CASKETS, CASKET_GEAR, CASKET_TIERS, itemName } from "./items";
+import { FIGHT_MAPS, MAP_BY_ID, RAID_MAPS, getMap, mapName } from "./maps";
 import { Rarity, rarityName } from "./rarity";
-import { TROPHIES, TROPHY_BY_ID, TrophyDef } from "./trophies";
-import { GearDef } from "./types";
+import { TROPHIES, TROPHY_BY_ID, TrophyDef, trophyName } from "./trophies";
+import { GearDef, UnlockTask } from "./types";
 import { describeUnlockTask } from "./unlocks";
-import { WEAPONS } from "./weapons";
+import { WEAPONS, weaponName } from "./weapons";
 
-// The Collection log's rewards: a tab for each map a trophy comes from (TrophyDef.from), and each
-// boss fight map (MapDef.fight) whose boss brings in a weapon, each listing the weapons it brings
-// in and then its trophies. A new trophy map or boss fight gets its tab by itself; a campaign
-// map's boss drops aren't listed.
+// The Collection log's rewards: an entry for each map a trophy comes from (TrophyDef.from), and
+// each boss fight map (MapDef.fight) whose boss brings in a weapon, each listing the weapons it
+// brings in and then its trophies, under the tab getMapTab files it in. A new trophy map or boss
+// fight gets its entry by itself; a campaign map's boss drops aren't listed.
 
 // The log's sentences, for locales/en/gen.json: {task} is describeUnlockTask's
 export const LOG_MESSAGES: Record<string, string> = {
@@ -76,20 +76,18 @@ export function getRewards(save: SaveData, mapId: string): RewardEntry[] {
         );
     }).map((weapon) => ({
         id: weapon.id,
-        name: tr(`weapon.${weapon.id}.name`, weapon.name),
+        name: weaponName(weapon),
         objId: weapon.iconObjId,
         how: t("log.bring_in", { task: describeUnlockTask(weapon.unlock!) }),
         found: save.unlockedItems.includes(weapon.id),
     }));
-    const trophies = TROPHIES.filter((trophy) => getTrophyMap(trophy) === mapId).map(
-        ({ id, name, objId, how }) => ({
-            id,
-            name,
-            objId,
-            how,
-            found: save.trophies.includes(id),
-        }),
-    );
+    const trophies = TROPHIES.filter((trophy) => getTrophyMap(trophy) === mapId).map((trophy) => ({
+        id: trophy.id,
+        name: trophyName(trophy),
+        objId: trophy.objId,
+        how: tr(`trophy.${trophy.id}.how`, trophy.how),
+        found: save.trophies.includes(trophy.id),
+    }));
     // An Act II map's boss as an Awakened invader (content/invasions.ts): a line counting each kill
     const invasions = INVADERS.filter((invader) => invader.mapId === mapId).map((invader) => {
         const kills = save.invasions?.[invader.id] ?? 0;
@@ -114,6 +112,7 @@ export type LogItem = {
     // Unique in the whole log (a casket's Justiciar faceguard isn't the Theatre's trophy)
     key: string;
     id: string;
+    // In the player's language, as how is
     name: string;
     objId: number;
     how: string;
@@ -132,9 +131,8 @@ export type LogItem = {
 export type LogEntry = {
     id: string;
     tab: LogTab;
-    // English, for tl(); a Clues entry's and Evolutions' are keys for t() (nameKey)
+    // In the player's language
     name: string;
-    nameKey?: boolean;
     items: LogItem[];
     // The count shown under the title, OSRS's kill count line
     tally?: { key: string; n: number };
@@ -150,6 +148,13 @@ export function getMapTab(mapId: string): LogTab {
     if (map.seasonal) return "minigames";
     if (map.fight || map.act) return "bosses";
     return "other";
+}
+
+// Whether a find's out for players: not one brought in on a map that isn't out yet (isMapOut), as
+// an act that isn't released keeps its finds hidden
+function isFindOut(def: { unlock?: UnlockTask }): boolean {
+    const map = def.unlock && MAP_BY_ID.get(def.unlock.mapId);
+    return !map || isMapOut(map);
 }
 
 // A casket gear's sentence: which reward caskets can hold it, and its task first if it has one
@@ -169,7 +174,7 @@ export function getLogEntries(save: SaveData): LogEntry[] {
     const maps: LogEntry[] = REWARD_MAPS.map((mapId) => ({
         id: mapId,
         tab: getMapTab(mapId),
-        name: getMap(mapId).name,
+        name: mapName(getMap(mapId)),
         items: getRewards(save, mapId).map((reward) => ({
             key: `${mapId}:${reward.id}`,
             id: reward.id,
@@ -189,27 +194,30 @@ export function getLogEntries(save: SaveData): LogEntry[] {
     const clues: LogEntry[] = RARITY_ORDER.map((rarity) => ({
         id: `clues_${rarity}`,
         tab: "clues" as const,
-        name: `collection.clues.${rarity}`,
-        nameKey: true,
-        items: CASKET_GEAR.filter((gear) => gear.rarity === rarity).map((gear) => ({
-            key: `gear:${gear.id}`,
-            id: gear.id,
-            name: gear.name,
-            objId: gear.objId,
-            how: casketHow(gear),
-            found: save.foundGear.includes(gear.id),
-        })),
+        name: t(`collection.clues.${rarity}`),
+        items: CASKET_GEAR.filter((gear) => gear.rarity === rarity && isFindOut(gear)).map(
+            (gear) => ({
+                key: `gear:${gear.id}`,
+                id: gear.id,
+                name: itemName(gear),
+                objId: gear.objId,
+                how: casketHow(gear),
+                found: save.foundGear.includes(gear.id),
+            }),
+        ),
         tally: { key: "collection.caskets_opened", n: save.casketsOpened },
     })).filter((entry) => entry.items.length > 0);
     const evolutions: LogEntry = {
         id: "evolutions",
         tab: "other",
-        name: "collection.evolutions",
-        nameKey: true,
-        items: EVOLUTIONS.map((evolution) => ({
+        name: t("collection.evolutions"),
+        // (not one of a weapon or passive brought in on a map that isn't out)
+        items: EVOLUTIONS.filter(
+            (evolution) => evolution.weapons.every(isFindOut) && isFindOut(evolution.passive),
+        ).map((evolution) => ({
             key: `evolution:${evolution.into.id}`,
             id: evolution.into.id,
-            name: evolution.into.name,
+            name: weaponName(evolution.into),
             objId: evolution.into.iconObjId,
             how: "",
             found: save.evolutionsMade.includes(evolution.into.id),
@@ -253,33 +261,25 @@ export function getCardEntries(save: SaveData): LogEntry[] {
         ...CARD_KINDS.map((kind) => ({
             id: `cards_${kind}`,
             tab: "cards" as const,
-            name: `cards.kind.${kind}`,
-            nameKey: true,
+            name: t(`cards.kind.${kind}`),
             items: CARDS.filter((card) => card.kind === kind).map(item),
             tally,
         })),
         {
             id: "cards_raids",
             tab: "cards" as const,
-            name: "collection.cards.raids",
-            nameKey: true,
+            name: t("collection.cards.raids"),
             items: packCards(PACK_BY_ID.get("raids")!).map(item),
             tally,
         },
     ];
 }
 
-// The log's whole count, each item once: obtained over total. Cards (the Cards tab) are kept apart,
-// each of its entries with its own count: the total is the game's own finds.
+// The log's whole count, obtained over total. Each item's listed once (its key), though two finds
+// can share a name: the Theatre's Justiciar faceguard trophy and the casket's are found apart.
+// Cards (the Cards tab) are kept apart, each of its entries with its own count: the total is the
+// game's own finds.
 export function getLogTotal(entries: LogEntry[]): { found: number; total: number } {
-    const items = new Map<string, boolean>();
-    for (const entry of entries.filter((e) => e.tab !== "cards")) {
-        for (const item of entry.items) {
-            items.set(item.key, (items.get(item.key) ?? false) || item.found);
-        }
-    }
-    return {
-        found: [...items.values()].filter(Boolean).length,
-        total: items.size,
-    };
+    const items = entries.filter((entry) => entry.tab !== "cards").flatMap((entry) => entry.items);
+    return { found: items.filter((item) => item.found).length, total: items.length };
 }

@@ -6,6 +6,7 @@ import { describeMissing, parseRoomCode, roomPlaysCardsOnly } from "../client/co
 import { RoomListing, RoomView } from "../client/coop/protocol";
 import { CHARACTERS, characterName, getCharacter } from "../content/characters";
 import { MAX_PARTY } from "../content/coop";
+import { getVault } from "../content/vault";
 import {
     HARD_PRESET,
     cleanInvocations,
@@ -23,7 +24,6 @@ import {
     isCoopMap,
     takesInvocations,
 } from "../content/maps";
-import { getVault } from "../content/vault";
 import { isCardRunBlocked } from "../core/cardRuns";
 import { isEndlessUnlocked, isHardUnlocked, isMapUnlocked } from "../core/save";
 import { fmtNum, list, t, tl, tp, useLang } from "../i18n";
@@ -31,7 +31,13 @@ import { CardNeedsWindow } from "./CardNeeds";
 import { useConfirm } from "./ConfirmDialog";
 import "./CoopScreen.css";
 import { CountryFlag } from "./CountryFlag";
-import { AdventurerPanel, Toggle, getStartingWeaponIcon } from "./GameUi";
+import {
+    AdventurerPanel,
+    PhoneAdventurerCard,
+    PickerHeading,
+    Toggle,
+    getStartingWeaponIcon,
+} from "./GameUi";
 import {
     InvocationBoard,
     InvocationsButton,
@@ -40,6 +46,7 @@ import {
 } from "./Invocations";
 import { ItemIcon } from "./ItemIcon";
 import { useMenuKeys } from "./menuKeys";
+import { usePhoneLayout } from "./usePhoneLayout";
 
 // Co-op: finding a room or making one, then the room itself, where everyone
 // picks their adventurer and readies up and the host picks the map. In a run,
@@ -332,8 +339,8 @@ function CoopLobby({ ui, client, room }: Props & { room: RoomView }): JSX.Elemen
     // the Sim cleans them; the start carries the same ones
     const host = room.members.find((m) => m.id === room.hostId);
     // Cards only for the whole room, as the host's tab says (roomPlaysCardsOnly; the host's own
-    // tab at once, before its loadout comes back). Who can't play it as their adventurer can't ready.
-    // Never in the weekly Vault's room, which is the same run for everyone
+    // tab at once, before its loadout comes back), never in the weekly Vault's room, which is the
+    // same run for everyone. Who can't play it as their adventurer can't ready.
     const vaultRoom = ui.vaultRoom !== undefined && getVault(ui.vaultRoom).mapId === room.mapId;
     const cardsOnly =
         !vaultRoom && (isHost ? ui.save.cardsOnly === true : roomPlaysCardsOnly(room));
@@ -400,333 +407,340 @@ function CoopLobby({ ui, client, room }: Props & { room: RoomView }): JSX.Elemen
             })
             .catch(() => {});
     };
-    return (
-        <div className="ui-fill ui-select">
-            <AdventurerPanel
-                ui={ui}
-                client={client}
-                fixed={getMapCharacter(map)}
-                cardsOnly={cardsOnly}
-                tabLocked={!isHost}
-                onCardNeeds={setNeedsFor}
-            />
-            <div className="ui-panel rs-border rs-background ui-select-panel ui-select-maps ui-coop-party">
-                <h2 className="ui-select-heading">
-                    {room.name || t("coop.party")}
-                    <span className="ui-select-count">
-                        {t("coop.player_count", {
-                            n: fmtNum(room.members.length),
-                            max: fmtNum(MAX_PARTY),
+    // A phone's lists over the whole screen (as PhoneSetup's): Escape and Enter close them
+    const phone = usePhoneLayout();
+    const [picker, setPicker] = useState<"adventurer" | "map">();
+    // Only the host picks the map: a guest's list closes if they stop being it
+    const picking = phone && (picker !== "map" || isHost) ? picker : undefined;
+    const closePicker = () => setPicker(undefined);
+    useMenuKeys(picking && !board ? { onBack: closePicker, onConfirm: closePicker } : {});
+    const party = (
+        <>
+            <h2 className="ui-select-heading">
+                {room.name || t("coop.party")}
+                <span className="ui-select-count">
+                    {t("coop.player_count", {
+                        n: fmtNum(room.members.length),
+                        max: fmtNum(MAX_PARTY),
+                    })}
+                </span>
+            </h2>
+            <div className="ui-coop-code">
+                <span className="ui-coop-code-label">{t("coop.room")}</span>
+                <span className="ui-coop-code-value">{room.code}</span>
+                <button className="ui-button ui-button-small" onClick={copyInvite}>
+                    {copied ? t("coop.copied") : t("coop.copy_invite")}
+                </button>
+                {isHost ? (
+                    <RoomAccess
+                        ui={ui}
+                        open={room.open}
+                        onChange={(open) => client.setRoomOpen(open)}
+                        className="ui-coop-open"
+                    />
+                ) : (
+                    <span className="ui-coop-open">
+                        {room.open ? t("coop.open") : t("coop.invite_only")}
+                    </span>
+                )}
+            </div>
+            <div className="ui-coop-members">
+                {room.members.map((member) => {
+                    const character = getCharacter(
+                        getMapCharacter(map) ??
+                            (CHARACTERS.some((c) => c.id === member.characterId)
+                                ? member.characterId
+                                : CHARACTERS[0].id),
+                    );
+                    const host = member.id === room.hostId;
+                    const tag =
+                        member.id === you && host
+                            ? t("coop.tag_you_host")
+                            : member.id === you
+                              ? t("coop.tag_you")
+                              : host
+                                ? t("coop.tag_host")
+                                : undefined;
+                    return (
+                        <div key={member.id} className="ui-coop-member">
+                            <ItemIcon objId={getStartingWeaponIcon(character)} size={28} />
+                            <span className="ui-coop-member-name">
+                                {/* A long name cuts this off */}
+                                <span
+                                    className="ui-card-title"
+                                    title={tag ? `${member.name} ${tag}` : member.name}
+                                >
+                                    {member.name}
+                                    {tag && <span className="ui-coop-you"> {tag}</span>}
+                                </span>
+                                {/* Under the name, which needs the room */}
+                                <span className="ui-card-style">
+                                    <CountryFlag
+                                        country={member.country}
+                                        label={t("coop.playing_from")}
+                                    />
+                                    {tl(character.name)}
+                                </span>
+                            </span>
+                            <span
+                                className={
+                                    "ui-coop-status" + (member.ready ? " ui-coop-status-ready" : "")
+                                }
+                            >
+                                {member.ready ? t("coop.ready") : t("coop.not_ready")}
+                            </span>
+                            {isHost && !host && (
+                                <button
+                                    className="ui-button ui-button-small ui-coop-kick"
+                                    title={t("coop.remove_from_party", { name: member.name })}
+                                    aria-label={t("coop.kick_player", { name: member.name })}
+                                    onClick={() => client.kickPlayer(member.id)}
+                                >
+                                    {t("coop.kick")}
+                                </button>
+                            )}
+                            {member.id === you && (
+                                <button
+                                    className="ui-button ui-button-small"
+                                    onClick={() => client.renameCoop()}
+                                >
+                                    {t("coop.new_name")}
+                                </button>
+                            )}
+                        </div>
+                    );
+                })}
+                {Array.from({ length: MAX_PARTY - room.members.length }, (_, i) => (
+                    <div key={i} className="ui-coop-member ui-coop-member-empty">
+                        {t("coop.waiting_for_player")}
+                    </div>
+                ))}
+            </div>
+        </>
+    );
+    const mapHeading = (
+        <div className="ui-style-name">
+            {t("coop.map")}
+            <span className="ui-style-treasure">
+                {isHost ? t("coop.host_picks") : t("coop.picked_by_host")}
+            </span>
+        </div>
+    );
+    // The host's: every co-op map, those someone in the room hasn't got out of reach
+    const mapList = (
+        <div className="ui-select-scroll ui-coop-maps">
+            <div className="ui-map-list">
+                {[...MAPS, ...RAID_MAPS, ...FUN_MAPS].filter(isCoopMap).map((m) => {
+                    const selected = m.id === room.mapId;
+                    // Others in the room who haven't got it
+                    const without = lacking(m.id, false);
+                    const unlocked = isMapUnlocked(ui.save, m.id) && !without;
+                    return (
+                        <button
+                            key={m.id}
+                            className={
+                                "ui-card ui-map-tile" +
+                                (selected ? " ui-card-selected" : "") +
+                                (unlocked ? "" : " ui-card-locked")
+                            }
+                            aria-pressed={selected}
+                            disabled={!unlocked}
+                            title={
+                                without && isMapUnlocked(ui.save, m.id)
+                                    ? t("coop.member_missing_map", {
+                                          name: without.name,
+                                          map: tl(m.name),
+                                      })
+                                    : tl(m.name)
+                            }
+                            onClick={() => client.selectMap(m.id)}
+                        >
+                            <ItemIcon objId={m.iconObjId} size={20} />
+                            <span className="ui-map-name">{tl(m.name)}</span>
+                        </button>
+                    );
+                })}
+            </div>
+        </div>
+    );
+    // The map picked, and how it'll be played
+    const mapSummary = (
+        <div className="ui-select-details-head">
+            <ItemIcon objId={map.iconObjId} size={36} />
+            <div>
+                <div className="ui-card-title">{tl(map.name)}</div>
+                <div className="ui-card-style">
+                    {map.fun
+                        ? map.fun.character
+                            ? t("coop.fun_map_character", {
+                                  name: tl(getCharacter(map.fun.character).name),
+                              })
+                            : t("coop.fun_map_endless")
+                        : map.fight
+                          ? t("coop.boss_fight_character", {
+                                name: tl(getCharacter(map.fight.character).name),
+                            })
+                          : map.raid || map.tombs
+                            ? t("coop.raid_room_by_room")
+                            : room.endless
+                              ? t("coop.endless")
+                              : t("coop.fifteen_minutes")}
+                </div>
+                {room.hard && <div className="ui-card-style">{t("coop.on_hard_mode")}</div>}
+                {raidLevel !== undefined && (
+                    <div className="ui-card-style">
+                        {t("coop.raid_level_host_invocations", {
+                            level: raidLevel,
+                            band: getRaidBand(raidLevel),
+                        })}
+                    </div>
+                )}
+                {invocationPoints !== undefined && invocationPoints > 0 && (
+                    <div className="ui-card-style">
+                        {t("coop.invocation_points_host", {
+                            points: invocationPoints,
+                        })}
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+    const notes = (
+        <>
+            {cardsOnly && !map.blessings && (
+                <div className="ui-coop-start-hint">{t("coop.cards_only")}</div>
+            )}
+            {withoutCards.length > 0 && (
+                <div className="ui-coop-start-hint">
+                    {t("coop.cards_waiting", { names: list(withoutCards.map((m) => m.name)) })}
+                </div>
+            )}
+            {cardsOnly && cardBlocked && (
+                <div className="ui-coop-cards-blocked">
+                    <span>
+                        {t("coop.cards_blocked", {
+                            name: characterName(getCharacter(runCharacter)),
                         })}
                     </span>
-                </h2>
-                <div className="ui-coop-code">
-                    <span className="ui-coop-code-label">{t("coop.room")}</span>
-                    <span className="ui-coop-code-value">{room.code}</span>
-                    <button className="ui-button ui-button-small" onClick={copyInvite}>
-                        {copied ? t("coop.copied") : t("coop.copy_invite")}
+                    <button
+                        className="ui-button ui-button-small"
+                        onClick={() => setNeedsFor(runCharacter)}
+                    >
+                        {t("cards.needs.open")}
                     </button>
-                    {isHost ? (
-                        <RoomAccess
-                            ui={ui}
-                            open={room.open}
-                            onChange={(open) => client.setRoomOpen(open)}
-                            className="ui-coop-open"
-                        />
-                    ) : (
-                        <span className="ui-coop-open">
-                            {room.open ? t("coop.open") : t("coop.invite_only")}
+                </div>
+            )}
+            {ui.coop.error && <div className="ui-coop-error">{tl(ui.coop.error)}</div>}
+            {isHost && !everyoneReady && (
+                <div className="ui-coop-start-hint">{t("coop.waiting_ready")}</div>
+            )}
+        </>
+    );
+    const leave = (
+        <>
+            <button className="ui-button" onClick={() => client.leaveRoom()}>
+                {t("coop.leave")}
+            </button>
+            {isHost && (
+                <button className="ui-button" title={t("coop.disband_hint")} onClick={disband}>
+                    {t("coop.disband")}
+                </button>
+            )}
+        </>
+    );
+    // The host's switches for how the map's played
+    const modes = (
+        <>
+            {isHost && map.tombs && (
+                // The Tombs go by the host's invocations instead of endless and hard mode
+                <InvocationsButton ui={ui} onOpen={() => setBoard(true)} />
+            )}
+            {isHost && runBoard && (
+                <RunInvocationsButton
+                    ui={ui}
+                    room={{ mapId: map.id, hard: room.hard }}
+                    onOpen={() => setBoard(true)}
+                />
+            )}
+            {isHost && !map.fun && !map.tombs && (
+                <div
+                    className={
+                        "ui-endless" +
+                        (isEndlessUnlocked(ui.save, map.id) ? "" : " ui-endless-locked")
+                    }
+                >
+                    <span className="ui-endless-name">{t("coop.endless")}</span>
+                    {!isEndlessUnlocked(ui.save, map.id) ? (
+                        <span className="ui-endless-hint">{t("coop.beat_the_map")}</span>
+                    ) : !room.endless && withoutEndless ? (
+                        // It can be turned off, but only on once everyone's beaten it
+                        <span className="ui-endless-hint">
+                            {t("coop.member_hasnt_beaten", { name: withoutEndless.name })}
                         </span>
+                    ) : (
+                        <Toggle
+                            on={room.endless}
+                            label={t("coop.endless")}
+                            onToggle={() => client.toggleEndless()}
+                        />
                     )}
                 </div>
-                <div className="ui-coop-members">
-                    {room.members.map((member) => {
-                        const character = getCharacter(
-                            getMapCharacter(map) ??
-                                (CHARACTERS.some((c) => c.id === member.characterId)
-                                    ? member.characterId
-                                    : CHARACTERS[0].id),
-                        );
-                        const host = member.id === room.hostId;
-                        const tag =
-                            member.id === you && host
-                                ? t("coop.tag_you_host")
-                                : member.id === you
-                                  ? t("coop.tag_you")
-                                  : host
-                                    ? t("coop.tag_host")
-                                    : undefined;
-                        return (
-                            <div key={member.id} className="ui-coop-member">
-                                <ItemIcon objId={getStartingWeaponIcon(character)} size={28} />
-                                <span className="ui-coop-member-name">
-                                    {/* A long name cuts this off */}
-                                    <span
-                                        className="ui-card-title"
-                                        title={tag ? `${member.name} ${tag}` : member.name}
-                                    >
-                                        {member.name}
-                                        {tag && <span className="ui-coop-you"> {tag}</span>}
-                                    </span>
-                                    {/* Under the name, which needs the room */}
-                                    <span className="ui-card-style">
-                                        <CountryFlag
-                                            country={member.country}
-                                            label={t("coop.playing_from")}
-                                        />
-                                        {tl(character.name)}
-                                    </span>
-                                </span>
-                                <span
-                                    className={
-                                        "ui-coop-status" +
-                                        (member.ready ? " ui-coop-status-ready" : "")
-                                    }
-                                >
-                                    {member.ready ? t("coop.ready") : t("coop.not_ready")}
-                                </span>
-                                {isHost && !host && (
-                                    <button
-                                        className="ui-button ui-button-small ui-coop-kick"
-                                        title={t("coop.remove_from_party", { name: member.name })}
-                                        aria-label={t("coop.kick_player", { name: member.name })}
-                                        onClick={() => client.kickPlayer(member.id)}
-                                    >
-                                        {t("coop.kick")}
-                                    </button>
-                                )}
-                                {member.id === you && (
-                                    <button
-                                        className="ui-button ui-button-small"
-                                        onClick={() => client.renameCoop()}
-                                    >
-                                        {t("coop.new_name")}
-                                    </button>
-                                )}
-                            </div>
-                        );
-                    })}
-                    {Array.from({ length: MAX_PARTY - room.members.length }, (_, i) => (
-                        <div key={i} className="ui-coop-member ui-coop-member-empty">
-                            {t("coop.waiting_for_player")}
-                        </div>
-                    ))}
-                </div>
-                <div className="ui-style-name">
-                    {t("coop.map")}
-                    <span className="ui-style-treasure">
-                        {isHost ? t("coop.host_picks") : t("coop.picked_by_host")}
-                    </span>
-                </div>
-                {isHost ? (
-                    <div className="ui-select-scroll ui-coop-maps">
-                        <div className="ui-map-list">
-                            {[...MAPS, ...RAID_MAPS, ...FUN_MAPS].filter(isCoopMap).map((m) => {
-                                const selected = m.id === room.mapId;
-                                // Others in the room who haven't got it
-                                const without = lacking(m.id, false);
-                                const unlocked = isMapUnlocked(ui.save, m.id) && !without;
-                                return (
-                                    <button
-                                        key={m.id}
-                                        className={
-                                            "ui-card ui-map-tile" +
-                                            (selected ? " ui-card-selected" : "") +
-                                            (unlocked ? "" : " ui-card-locked")
-                                        }
-                                        aria-pressed={selected}
-                                        disabled={!unlocked}
-                                        title={
-                                            without && isMapUnlocked(ui.save, m.id)
-                                                ? t("coop.member_missing_map", {
-                                                      name: without.name,
-                                                      map: tl(m.name),
-                                                  })
-                                                : tl(m.name)
-                                        }
-                                        onClick={() => client.selectMap(m.id)}
-                                    >
-                                        <ItemIcon objId={m.iconObjId} size={20} />
-                                        <span className="ui-map-name">{tl(m.name)}</span>
-                                    </button>
-                                );
-                            })}
-                        </div>
-                    </div>
-                ) : (
-                    <div className="ui-select-details">
-                        <div className="ui-select-details-head">
-                            <ItemIcon objId={map.iconObjId} size={36} />
-                            <div>
-                                <div className="ui-card-title">{tl(map.name)}</div>
-                                <div className="ui-card-style">
-                                    {map.fun
-                                        ? map.fun.character
-                                            ? t("coop.fun_map_character", {
-                                                  name: tl(getCharacter(map.fun.character).name),
-                                              })
-                                            : t("coop.fun_map_endless")
-                                        : map.fight
-                                          ? t("coop.boss_fight_character", {
-                                                name: tl(getCharacter(map.fight.character).name),
-                                            })
-                                          : map.raid || map.tombs
-                                            ? t("coop.raid_room_by_room")
-                                            : room.endless
-                                              ? t("coop.endless")
-                                              : t("coop.fifteen_minutes")}
-                                </div>
-                                {room.hard && (
-                                    <div className="ui-card-style">{t("coop.on_hard_mode")}</div>
-                                )}
-                                {raidLevel !== undefined && (
-                                    <div className="ui-card-style">
-                                        {t("coop.raid_level_host_invocations", {
-                                            level: raidLevel,
-                                            band: getRaidBand(raidLevel),
-                                        })}
-                                    </div>
-                                )}
-                                {invocationPoints !== undefined && invocationPoints > 0 && (
-                                    <div className="ui-card-style">
-                                        {t("coop.invocation_points_host", {
-                                            points: invocationPoints,
-                                        })}
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                )}
-                {cardsOnly && !map.blessings && (
-                    <div className="ui-coop-start-hint">{t("coop.cards_only")}</div>
-                )}
-                {withoutCards.length > 0 && (
-                    <div className="ui-coop-start-hint">
-                        {t("coop.cards_waiting", { names: list(withoutCards.map((m) => m.name)) })}
-                    </div>
-                )}
-                {cardsOnly && cardBlocked && (
-                    <div className="ui-coop-cards-blocked">
-                        <span>
-                            {t("coop.cards_blocked", {
-                                name: characterName(getCharacter(runCharacter)),
-                            })}
-                        </span>
-                        <button
-                            className="ui-button ui-button-small"
-                            onClick={() => setNeedsFor(runCharacter)}
-                        >
-                            {t("cards.needs.open")}
-                        </button>
-                    </div>
-                )}
-                {ui.coop.error && <div className="ui-coop-error">{tl(ui.coop.error)}</div>}
-                {isHost && !everyoneReady && (
-                    <div className="ui-coop-start-hint">{t("coop.waiting_ready")}</div>
-                )}
-            </div>
-            <div className="ui-panel rs-border rs-background ui-select-bar ui-coop-bar">
-                <button className="ui-button" onClick={() => client.leaveRoom()}>
-                    {t("coop.leave")}
-                </button>
-                {isHost && (
-                    <button className="ui-button" title={t("coop.disband_hint")} onClick={disband}>
-                        {t("coop.disband")}
-                    </button>
-                )}
-                {isHost && map.tombs && (
-                    // The Tombs go by the host's invocations instead of endless and hard mode
-                    <InvocationsButton ui={ui} onOpen={() => setBoard(true)} />
-                )}
-                {isHost && runBoard && (
-                    <RunInvocationsButton
-                        ui={ui}
-                        room={{ mapId: map.id, hard: room.hard }}
-                        onOpen={() => setBoard(true)}
-                    />
-                )}
-                {isHost && !map.fun && !map.tombs && (
-                    <div
-                        className={
-                            "ui-endless" +
-                            (isEndlessUnlocked(ui.save, map.id) ? "" : " ui-endless-locked")
-                        }
-                    >
-                        <span className="ui-endless-name">{t("coop.endless")}</span>
-                        {!isEndlessUnlocked(ui.save, map.id) ? (
-                            <span className="ui-endless-hint">{t("coop.beat_the_map")}</span>
-                        ) : !room.endless && withoutEndless ? (
-                            // It can be turned off, but only on once everyone's beaten it
-                            <span className="ui-endless-hint">
-                                {t("coop.member_hasnt_beaten", { name: withoutEndless.name })}
-                            </span>
-                        ) : (
-                            <Toggle
-                                on={room.endless}
-                                label={t("coop.endless")}
-                                onToggle={() => client.toggleEndless()}
-                            />
-                        )}
-                    </div>
-                )}
-                {isHost && !map.tombs && (
-                    <div
-                        className={
-                            "ui-endless" +
-                            (isHardUnlocked(ui.save, map.id) ? "" : " ui-endless-locked")
-                        }
-                    >
-                        <span className="ui-endless-name">{t("coop.hard")}</span>
-                        {!isHardUnlocked(ui.save, map.id) ? (
-                            <span className="ui-endless-hint">{t("coop.beat_the_map")}</span>
-                        ) : !room.hard && withoutHard ? (
-                            // It can be turned off, but only on once everyone's beaten it
-                            <span className="ui-endless-hint">
-                                {t("coop.member_hasnt_beaten", { name: withoutHard.name })}
-                            </span>
-                        ) : (
-                            <Toggle
-                                on={room.hard}
-                                label={t("coop.hard")}
-                                onToggle={() => client.toggleHard()}
-                            />
-                        )}
-                    </div>
-                )}
-                <button
+            )}
+            {isHost && !map.tombs && (
+                <div
                     className={
-                        "ui-button ui-coop-ready" +
-                        (isHost ? "" : " ui-select-go") +
-                        (me?.ready ? "" : " ui-button-go")
+                        "ui-endless" + (isHardUnlocked(ui.save, map.id) ? "" : " ui-endless-locked")
                     }
-                    // A Cards only room without the cards it takes (cardBlocked): not ready
-                    disabled={!me?.ready && cardBlocked}
-                    onClick={() => client.setCoopReady(!me?.ready)}
                 >
-                    {me?.ready ? t("coop.not_ready") : t("coop.ready")}
+                    <span className="ui-endless-name">{t("coop.hard")}</span>
+                    {!isHardUnlocked(ui.save, map.id) ? (
+                        <span className="ui-endless-hint">{t("coop.beat_the_map")}</span>
+                    ) : !room.hard && withoutHard ? (
+                        // It can be turned off, but only on once everyone's beaten it
+                        <span className="ui-endless-hint">
+                            {t("coop.member_hasnt_beaten", { name: withoutHard.name })}
+                        </span>
+                    ) : (
+                        <Toggle
+                            on={room.hard}
+                            label={t("coop.hard")}
+                            onToggle={() => client.toggleHard()}
+                        />
+                    )}
+                </div>
+            )}
+        </>
+    );
+    const ready = (
+        <>
+            <button
+                className={
+                    "ui-button ui-coop-ready" +
+                    (isHost ? "" : " ui-select-go") +
+                    (me?.ready ? "" : " ui-button-go")
+                }
+                // A Cards only room without the cards it takes (cardBlocked): not ready
+                disabled={!me?.ready && cardBlocked}
+                onClick={() => client.setCoopReady(!me?.ready)}
+            >
+                {me?.ready ? t("coop.not_ready") : t("coop.ready")}
+            </button>
+            {isHost && (
+                <button
+                    className="ui-button ui-button-go ui-select-go"
+                    disabled={!everyoneReady}
+                    title={everyoneReady ? undefined : t("coop.waiting_ready")}
+                    onClick={() => client.startCoopRun()}
+                >
+                    {room.hard
+                        ? t("coop.start_hard", { map: tl(map.name) })
+                        : t("coop.start", { map: tl(map.name) })}
                 </button>
-                {isHost && (
-                    <button
-                        className="ui-button ui-button-go ui-select-go"
-                        disabled={!everyoneReady}
-                        title={everyoneReady ? undefined : t("coop.waiting_ready")}
-                        onClick={() => client.startCoopRun()}
-                    >
-                        {room.hard
-                            ? t("coop.start_hard", { map: tl(map.name) })
-                            : t("coop.start", { map: tl(map.name) })}
-                    </button>
-                )}
-                {needsFor && (
-                    <CardNeedsWindow
-                        save={cardsSave}
-                        characterId={needsFor}
-                        client={client}
-                        onClose={() => setNeedsFor(undefined)}
-                    />
-                )}
-            </div>
+            )}
+        </>
+    );
+    const overlays = (
+        <>
             {board && isHost && map.tombs && (
                 <InvocationBoard ui={ui} client={client} onClose={() => setBoard(false)} />
             )}
@@ -739,6 +753,120 @@ function CoopLobby({ ui, client, room }: Props & { room: RoomView }): JSX.Elemen
                 />
             )}
             {confirmDialog}
+            {needsFor && (
+                <CardNeedsWindow
+                    save={cardsSave}
+                    characterId={needsFor}
+                    client={client}
+                    onClose={() => setNeedsFor(undefined)}
+                />
+            )}
+        </>
+    );
+    if (!phone) {
+        return (
+            <div className="ui-fill ui-select">
+                <AdventurerPanel
+                    ui={ui}
+                    client={client}
+                    fixed={getMapCharacter(map)}
+                    cardsOnly={cardsOnly}
+                    tabLocked={!isHost}
+                    onCardNeeds={setNeedsFor}
+                />
+                <div className="ui-panel rs-border rs-background ui-select-panel ui-select-maps ui-coop-party">
+                    {party}
+                    {mapHeading}
+                    {isHost ? mapList : <div className="ui-select-details">{mapSummary}</div>}
+                    {notes}
+                </div>
+                <div className="ui-panel rs-border rs-background ui-select-bar ui-coop-bar">
+                    {leave}
+                    {modes}
+                    {ready}
+                </div>
+                {overlays}
+            </div>
+        );
+    }
+    if (picking === "adventurer") {
+        return (
+            <div className="ui-fill ui-phone-picker">
+                <AdventurerPanel
+                    ui={ui}
+                    client={client}
+                    fixed={getMapCharacter(map)}
+                    cardsOnly={cardsOnly}
+                    tabLocked={!isHost}
+                    onCardNeeds={setNeedsFor}
+                    onDone={closePicker}
+                />
+                {overlays}
+            </div>
+        );
+    }
+    if (picking === "map") {
+        // The list, with what's picked and the host's switches for it beside
+        return (
+            <div className="ui-fill ui-phone-picker">
+                <div className="ui-panel rs-border rs-background ui-select-panel ui-coop-map-picker">
+                    <PickerHeading
+                        heading={
+                            <h2 className="ui-select-heading">
+                                {t("coop.map")}
+                                <span className="ui-select-count">{t("coop.host_picks")}</span>
+                            </h2>
+                        }
+                        onDone={closePicker}
+                    />
+                    {mapList}
+                    <div className="ui-coop-map-side">
+                        <div className="ui-select-details">{mapSummary}</div>
+                        {modes}
+                    </div>
+                </div>
+                {overlays}
+            </div>
+        );
+    }
+    // A phone's room: the party beside the map and your adventurer, each a tap from its list
+    const mapLabel = (
+        <span className="ui-phone-card-label">
+            {t("coop.map")}
+            <span className="ui-phone-change">
+                {isHost ? t("ui.select.change") : t("coop.picked_by_host")}
+            </span>
+        </span>
+    );
+    return (
+        <div className="ui-fill ui-select ui-coop-phone">
+            <div className="ui-panel rs-border rs-background ui-select-panel ui-coop-party">
+                {party}
+                {notes}
+            </div>
+            <div className="ui-coop-phone-side">
+                {isHost ? (
+                    <button
+                        className="ui-card ui-phone-card ui-phone-map"
+                        aria-label={t("ui.select.change_map", { map: tl(map.name) })}
+                        onClick={() => setPicker("map")}
+                    >
+                        {mapLabel}
+                        {mapSummary}
+                    </button>
+                ) : (
+                    <div className="ui-card ui-phone-card ui-phone-map ui-phone-card-static">
+                        {mapLabel}
+                        {mapSummary}
+                    </div>
+                )}
+                <PhoneAdventurerCard ui={ui} map={map} onOpen={() => setPicker("adventurer")} />
+            </div>
+            <div className="ui-panel rs-border rs-background ui-select-bar ui-coop-bar">
+                {leave}
+                {ready}
+            </div>
+            {overlays}
         </div>
     );
 }

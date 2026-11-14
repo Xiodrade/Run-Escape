@@ -88,7 +88,7 @@ version and how to run it.
   (the boss fights and Act II's maps under Bosses, the Theatre of Blood and the Tombs of Amascut
   under Raids, the Hallowed Night and Thanksgiving Harvest under Minigames): the weapons it brings
   in, then its trophies. Clues has the gear reward caskets hold, by rarity, and Other the
-  evolutions.
+  evolutions, each shown as the weapon that evolves until it's been made.
 - **Cards** (the title's Cards tile): a card for every weapon, passive, reward casket gear and
   Collection log trophy, each in versions from its own rarity up to Very rare. Runs earn platinum
   tokens beside their coins (less in endless runs, as coins are), and the Card shop sells packs of
@@ -395,7 +395,7 @@ version and how to run it.
   (the Scar's, only in it; weapons aim only at what's lit in it). A rule a remix has on already
   doesn't come; with all four on, nothing does. Each invader's kit leaves out its summons and what
   needs its own map (the Duke's vents and gaze). Its kill drops a master casket and 100 to 200
-  coins, and counts on its Act II map's Collection log tab (`SaveData.invasions`).
+  coins, and counts on its Act II map's Collection log entry (`SaveData.invasions`).
 - **Awakener's orbs** (`SaveData.awakenerOrbs`, object 28334): each Awakened fight won gives one
   (the gauntlet's first clears two, its fights none). On a campaign map's card (solo, not endless)
   the orb's switch awakens its final boss for one run: 1.6 times its hitpoints, enraged from 75%,

@@ -23,6 +23,12 @@ against the release branch as well, then go through the list below.
 All of these are in `CLAUDE.md`'s "After every change":
 
 - `bun run test` and `bun run tsc --noEmit -p .`.
+- **If you changed ScapeRune (`src/game/scaperune/`, `scripts/scaperune/`), a map, collision or
+  how a map's scenery loads (`core/world/`, `RegionDataLoader.ts`, `SceneBuilder.ts`,
+  `LocOverrides.ts`), or moved to a newer cache**, also `bun run test:maps` (it needs the game's
+  cache). It runs ScapeRune's long map checks, which build the maps with all of those and which a
+  plain `bun run test` leaves out. The release workflow runs them every time, and a failure there
+  stops the release.
 - **Prettier on the files you changed**: run `bun run prettier --write <files>` from the repository
   so it uses the project config. Don't format the whole repository, and exclude `CHANGELOG.md`
   (see below). An editor's formatter can reformat unrelated lines. On Windows, use
