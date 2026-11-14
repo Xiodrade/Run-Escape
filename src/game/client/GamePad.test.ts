@@ -1,6 +1,10 @@
 // @vitest-environment jsdom
+import { cleanup, render } from "@testing-library/react";
+import { Fragment, createElement } from "react";
 import { afterEach, describe, expect, test, vi } from "vitest";
 
+import type { Renderer } from "../../components/renderer/Renderer";
+import { RendererCanvas } from "../../components/renderer/RendererCanvas";
 import { GamePads, PAD, identifyPad, nearestInDirection, padLabel, padToMove } from "./GamePad";
 
 const move = () => ({ x: 0, y: 0 });
@@ -116,6 +120,7 @@ describe("GamePads", () => {
     };
     afterEach(() => {
         pad = fakePad();
+        cleanup();
         document.body.innerHTML = "";
     });
 
@@ -234,6 +239,42 @@ describe("GamePads", () => {
         expect(document.activeElement).toBe(select);
         press(PAD.down);
         expect(document.activeElement).toBe(under);
+    });
+
+    // The game's canvas fills the screen behind every menu, ahead of it in the page
+    test("in a menu, the first highlight is the screen's first button, not the game's canvas", () => {
+        const { p } = pads();
+        const canvas = document.createElement("canvas");
+        // Focusable, as Renderer makes it for the viewer
+        canvas.tabIndex = 0;
+        const renderer = {
+            canvas,
+            init: () => new Promise(() => {}),
+            start: () => {},
+            stop: () => {},
+        } as unknown as Renderer;
+        render(
+            createElement(
+                Fragment,
+                null,
+                createElement(RendererCanvas, { renderer, focusable: false }),
+                createElement("button", { id: "play" }, "Singleplayer"),
+            ),
+        );
+        for (const el of document.querySelectorAll<HTMLElement>("div, canvas, button")) {
+            el.getBoundingClientRect = () =>
+                ({ left: 0, top: 0, width: 10, height: 10 }) as DOMRect;
+        }
+        pad = fakePad([PAD.down]);
+        p.poll(0, "menu");
+        expect(document.activeElement?.id).toBe("play");
+        // The world clicked, then south: the highlight comes back to the button
+        canvas.focus();
+        pad = fakePad();
+        p.poll(16, "menu");
+        pad = fakePad([PAD.south]);
+        p.poll(32, "menu");
+        expect(document.activeElement?.id).toBe("play");
     });
 
     // An Xbox pad and a second one, with frame(first's buttons, second's) a

@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen, within } from "@testing-library/rea
 import { afterEach, describe, expect, test, vi } from "vitest";
 
 import { GameClient } from "../client/GameClient";
+import { GamePads, PAD } from "../client/GamePad";
 import { GameStore } from "../client/GameStore";
 import { EVOLUTIONS } from "../content/evolutions";
 import { getMap, mapName } from "../content/maps";
@@ -41,6 +42,43 @@ describe("the Collection log's screen", () => {
         const { showScreen, log } = openLog();
         fireEvent.click(within(log).getByRole("button", { name: "Close" }));
         expect(showScreen).toHaveBeenCalledWith("title");
+    });
+
+    test("gives a pad's first highlight to the open tab, so pressing A twice stays in the log", () => {
+        const { showScreen, log } = openLog();
+        // jsdom lays nothing out, so give everything a size
+        for (const el of log.querySelectorAll<HTMLElement>("button, select")) {
+            el.getBoundingClientRect = () =>
+                ({ left: 0, top: 0, width: 10, height: 10 }) as DOMRect;
+        }
+        let down: number[] = [];
+        const pad = () => ({
+            id: "Xbox Wireless Controller (STANDARD GAMEPAD Vendor: 045e Product: 0b13)",
+            index: 0,
+            connected: true,
+            mapping: "standard",
+            axes: [0, 0],
+            buttons: Array.from({ length: 17 }, (_, i) => ({
+                pressed: down.includes(i),
+                touched: down.includes(i),
+                value: down.includes(i) ? 1 : 0,
+            })),
+        });
+        Object.defineProperty(navigator, "getGamepads", {
+            value: () => [pad()],
+            configurable: true,
+        });
+        const pads = new GamePads();
+        for (const now of [0, 32]) {
+            down = [PAD.south];
+            pads.poll(now, "menu");
+            down = [];
+            pads.poll(now + 16, "menu");
+        }
+        pads.dispose();
+        expect(document.activeElement).toHaveClass("ui-log-tab");
+        expect(document.activeElement).toHaveAttribute("aria-pressed", "true");
+        expect(showScreen).not.toHaveBeenCalled();
     });
 
     test("keeps each tab's entry, and the dropdown picks one as the list does", () => {

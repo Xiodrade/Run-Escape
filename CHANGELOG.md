@@ -17,6 +17,11 @@ the version in the corner).
   have them, names green once an entry is complete) and its wins. Clues lists the gear reward
   caskets hold, and it can be read on a phone held upright.
 
+### Fixed
+
+- With a controller, the first press on a menu now highlights its first button instead of
+  nothing you could see, and the keyboard's Tab goes there first too.
+
 ## 0.32.1 - 2026-11-14
 
 ### Fixed
