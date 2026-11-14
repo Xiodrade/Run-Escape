@@ -1,5 +1,6 @@
 import { list, t, tr } from "../i18n";
 import { isMapOut } from "./acts";
+import { getArmouryDepth } from "./armoury";
 import { CASKET_GEAR, itemName } from "./items";
 import { MAP_BY_ID } from "./maps";
 import { PASSIVES, passiveDescription, passiveName } from "./passives";
@@ -9,7 +10,7 @@ import { formatStats } from "./stats";
 import { CARDS_ICON_OBJ } from "./titleIcons";
 import { TROPHIES, TrophyDef, trophyName } from "./trophies";
 import type { GearDef, PassiveDef, WeaponDef } from "./types";
-import { WEAPONS, weaponDescription, weaponName } from "./weapons";
+import { WEAPONS, getWeapon, weaponDescription, weaponName } from "./weapons";
 
 // Cards: a card for each weapon, passive, reward casket gear and Collection log trophy the game
 // already has, with that thing's cache item as its picture. Packs are bought with the platinum tokens
@@ -216,7 +217,93 @@ export type PackDef = {
     price: number;
     odds: Record<Rarity, number>;
     holds: (card: CardDef) => boolean;
+    // How much likelier its Rare and Very rare cards are than in a basic pack (the Champion's)
+    rarer?: number;
 };
+
+// The packs' knobs, in one place. A pack only ever holds cards of what the player has unlocked
+// (core/cards.ts, isCardUnlocked), so the best things are rare first by being far into the game.
+// Then a card's picked by its weight: its item's rarity's (CARD_ITEM_WEIGHTS) times its tier's
+// (CARD_TIER_FACTORS), times a pack's `rarer` for Rare and Very rare ones. Then its version's
+// rolled by the pack's odds (PackDef.odds, below), no commoner than the card's own rarity.
+export const CARD_ITEM_WEIGHTS: Record<Rarity, number> = {
+    common: 10,
+    uncommon: 4,
+    rare: 1,
+    veryRare: 0.25,
+};
+
+// A card's tier is how strong its item is, 0 to 3 (cardTier): the factor its weight's multiplied
+// by, so of two Very rare things the stronger is the rarer pull
+export const CARD_TIER_FACTORS: readonly number[] = [1, 0.8, 0.5, 0.25];
+
+// The strongest things in the game, top tier whatever the rules below say
+export const CARD_TOP_ITEMS: ReadonlySet<string> = new Set([
+    "weapon:harmonised_nightmare_staff",
+    "weapon:keris_partisan_of_the_sun",
+    "weapon:keris_partisan_of_amascut",
+    "weapon:scythe_of_vitur",
+    "weapon:twisted_bow",
+    "weapon:tumekens_shadow",
+    "gear:infernal_cape",
+    "gear:avas_assembler",
+    "gear:venator_ring",
+    "gear:armadyl_chestplate",
+]);
+
+// How strong a card's item is, 0 to 3, for its weight (CARD_TIER_FACTORS):
+// - gear: how far up its Armoury line it is (content/armoury.ts: a Fire cape 1, an Infernal cape 2)
+// - weapons: 3 for an evolution or a raid's or a boss fight's (behind a raid chest or a fight), 2
+//   for a boss's (a kill), 1 for any other map's, 0 for one there from the start
+// - passives: 1 for one a map brings in, 0 for the rest
+// - trophies: 0, their rarity says it all
+// and CARD_TOP_ITEMS 3, whatever those say
+export function cardTier(card: CardDef): number {
+    if (CARD_TOP_ITEMS.has(card.id)) {
+        return 3;
+    }
+    const id = card.id.slice(card.id.indexOf(":") + 1);
+    if (card.kind === "gear") {
+        return Math.min(getArmouryDepth(id), 3);
+    }
+    if (card.kind === "weapon") {
+        const weapon = getWeapon(id);
+        const unlock = weapon.unlock;
+        const map = unlock && MAP_BY_ID.get(unlock.mapId);
+        if (weapon.evolved || unlock?.kind === "raidChest" || map?.raid || map?.fight) {
+            return 3;
+        }
+        return unlock?.kind === "killBoss" ? 2 : unlock ? 1 : 0;
+    }
+    if (card.kind === "passive") {
+        return card.mapId !== undefined ? 1 : 0;
+    }
+    return 0;
+}
+
+// How likely a card is to be picked for a pack, against the rest of its pool (see above)
+export function cardWeight(pack: PackDef, card: CardDef): number {
+    const rare = card.rarity === "rare" || card.rarity === "veryRare";
+    return (
+        CARD_ITEM_WEIGHTS[card.rarity] *
+        CARD_TIER_FACTORS[cardTier(card)] *
+        (rare ? (pack.rarer ?? 1) : 1)
+    );
+}
+
+// The share of a pack's cards that are each rarity of thing, for the shop to say, of its pool
+// (the player's own, core/cards.ts packPool)
+export function packRarityShares(
+    pack: PackDef,
+    pool: readonly CardDef[] = packCards(pack),
+): Record<Rarity, number> {
+    const total = pool.reduce((sum, card) => sum + cardWeight(pack, card), 0);
+    const shares: Record<Rarity, number> = { common: 0, uncommon: 0, rare: 0, veryRare: 0 };
+    for (const card of total > 0 ? pool : []) {
+        shares[card.rarity] += cardWeight(pack, card) / total;
+    }
+    return shares;
+}
 
 const STANDARD_ODDS: Record<Rarity, number> = {
     common: 0.45,
@@ -301,11 +388,13 @@ export const PACKS: PackDef[] = [
     {
         id: "champion",
         name: "Champion's pack",
-        description: "Any weapon, passive or trophy card, with better odds of the rarer versions.",
+        description: "Any weapon, passive or trophy card, likelier to be rare.",
         objId: CARDS_ICON_OBJ,
         color: "#2f5e3e",
         price: 300,
-        odds: { common: 0, uncommon: 0.45, rare: 0.4, veryRare: 0.15 },
+        // More Rare and Very rare than a basic pack, in its things and in its versions
+        odds: { common: 0.25, uncommon: 0.35, rare: 0.32, veryRare: 0.08 },
+        rarer: 1.6,
         // Every card but gear, which only the Treasure trail pack holds
         holds: (card) => card.kind !== "gear",
     },
@@ -324,7 +413,8 @@ export function packDescription(pack: PackDef): string {
     return tr(`cards.pack.${pack.id}.desc`, pack.description);
 }
 
-// A pack's pool: the cards in the game it can give
+// A pack's pool: the cards in the game it can give, unlocked or not (a player's own is
+// core/cards.ts packPool)
 export function packCards(pack: PackDef): CardDef[] {
     return CARDS.filter(pack.holds);
 }

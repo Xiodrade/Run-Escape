@@ -9,8 +9,61 @@ import { LOCKABLE_ITEMS } from "../../content/unlocks";
 import { encodeCardCaps } from "../../core/cardRuns";
 import { createSave } from "../../core/save";
 import { GameStore } from "../GameStore";
-import { CoopLobby, CoopView, makeLoadout, parseRoomCode } from "./CoopLobby";
+import { CoopLobby, CoopView, makeLoadout, parseRoomCode, roomPlaysCardsOnly } from "./CoopLobby";
 import { RoomView } from "./protocol";
+
+test("a room plays Cards only as its host's tab says, and guests hear when it changes", () => {
+    expect.hasAssertions();
+    const lobby = new CoopLobby(new GameStore(createSave()));
+    const changed = vi.fn();
+    lobby.onRoomCardsOnlyChanged = changed;
+    const update = (changes: Partial<CoopView>) =>
+        (lobby as unknown as { update(changes: Partial<CoopView>): void }).update(changes);
+    const member = (id: string, cardsOnly: boolean) => ({
+        id,
+        name: id,
+        characterId: "warrior",
+        ready: false,
+        loadout: makeLoadout(
+            {},
+            [],
+            {},
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            cardsOnly,
+        ),
+    });
+    const room: RoomView = {
+        code: "ABCDEFGH",
+        name: "Test room",
+        open: false,
+        hostId: "host",
+        mapId: "lumbridge",
+        endless: false,
+        hard: false,
+        started: false,
+        members: [member("host", false), member("guest", true)],
+    };
+    // A guest's own choice doesn't make the room Cards only
+    expect(roomPlaysCardsOnly(room)).toBe(false);
+    // Joining: a host to go by
+    update({ room });
+    expect(changed).toHaveBeenCalledTimes(1);
+    const cardsRoom = { ...room, members: [member("host", true), member("guest", false)] };
+    expect(roomPlaysCardsOnly(cardsRoom)).toBe(true);
+    update({ room: cardsRoom });
+    expect(changed).toHaveBeenCalledTimes(2);
+    update({ room });
+    expect(changed).toHaveBeenCalledTimes(3);
+    // A new host: each loadout goes by theirs
+    update({ room: { ...room, hostId: "guest" } });
+    expect(changed).toHaveBeenCalledTimes(4);
+    expect(roomPlaysCardsOnly({ ...room, hostId: "guest" })).toBe(true);
+});
 
 test("loadouts refresh only when the room's map changes", () => {
     expect.hasAssertions();

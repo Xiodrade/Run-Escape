@@ -1,11 +1,20 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { useState } from "react";
 
 import { GameClient } from "../client/GameClient";
 import { UiSnapshot } from "../client/GameStore";
-import { CARDS, CARD_BY_ID, PACK_BY_ID, PACK_SIZE, PackDef, packName } from "../content/cards";
-import { buyCardPack, openCardPack } from "../core/cards";
+import {
+    CARDS,
+    CARD_BY_ID,
+    PACK_BY_ID,
+    PACK_SIZE,
+    PackDef,
+    packName,
+    packRarityShares,
+} from "../content/cards";
+import { getMap, mapName } from "../content/maps";
+import { buyCardPack, openCardPack, packPool } from "../core/cards";
 import { SaveData, createSave } from "../core/save";
 import { CardsScreen } from "./CardsScreen";
 
@@ -65,25 +74,49 @@ test("keeps a card not found face down, and shows a found one with its versions 
     expect(screen.queryByRole("button", { name: /free pack/ })).not.toBeInTheDocument();
 });
 
-test("opens the free pack face down, turns its cards over, and puts them in the album", () => {
-    render(<Harness start={createSave()} />);
-    fireEvent.click(screen.getByRole("button", { name: "Open your free pack (1)" }));
-    const dialog = screen.getByRole("dialog");
-    const faceDown = () => screen.queryAllByRole("button", { name: "A card, face down" });
-    expect(faceDown()).toHaveLength(PACK_SIZE);
-    fireEvent.click(faceDown()[0]);
-    expect(faceDown()).toHaveLength(PACK_SIZE - 1);
+// Turn all over deals one card after another: the rest of them, on fake time
+function turnAll() {
     fireEvent.click(screen.getByRole("button", { name: "Turn all over" }));
-    expect(faceDown()).toHaveLength(0);
-    // The focus goes on to Done, for a keyboard or a controller
-    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Done" }));
-    expect(dialog).toHaveTextContent("New");
-    fireEvent.click(screen.getByRole("button", { name: "Done" }));
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /free pack/ })).not.toBeInTheDocument();
-    expect(screen.getAllByRole("button", { name: /not found yet$/ }).length).toBeLessThan(
-        CARDS.length,
-    );
+    // A card a step: each deal sets the next one's timer
+    for (let i = 0; i <= PACK_SIZE; i++) {
+        act(() => {
+            vi.advanceTimersByTime(1000);
+        });
+    }
+}
+
+test("opens the free pack as a deck on the mat, dealing a card each press, and puts them in the album", () => {
+    vi.useFakeTimers();
+    try {
+        render(<Harness start={createSave()} />);
+        fireEvent.click(screen.getByRole("button", { name: "Open your free pack (1)" }));
+        const mat = screen.getByRole("dialog");
+        fireEvent.click(screen.getByRole("button", { name: `The deck, ${PACK_SIZE} cards left` }));
+        expect(
+            screen.getByRole("button", { name: `The deck, ${PACK_SIZE - 1} cards left` }),
+        ).toBeInTheDocument();
+        expect(mat.querySelectorAll(".ui-tcg-deal")).toHaveLength(1);
+        turnAll();
+        expect(screen.queryByRole("button", { name: /^The deck/ })).toBeNull();
+        expect(mat.querySelectorAll(".ui-tcg-deal")).toHaveLength(PACK_SIZE);
+        // The focus goes on to Done, for a keyboard or a controller
+        expect(document.activeElement).toBe(screen.getByRole("button", { name: "Done" }));
+        expect(mat).toHaveTextContent("New");
+        // A dealt card shows big; Escape shuts that first, then the mat
+        const first = mat.querySelector(".ui-tcg-deal") as HTMLElement;
+        fireEvent.click(first);
+        expect(screen.getAllByRole("dialog")).toHaveLength(2);
+        fireEvent.keyDown(window, { code: "Escape", key: "Escape" });
+        expect(screen.getAllByRole("dialog")).toHaveLength(1);
+        fireEvent.click(screen.getByRole("button", { name: "Done" }));
+        expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: /free pack/ })).not.toBeInTheDocument();
+        expect(screen.getAllByRole("button", { name: /not found yet$/ }).length).toBeLessThan(
+            CARDS.length,
+        );
+    } finally {
+        vi.useRealTimers();
+    }
 });
 
 test("sells each pack for platinum tokens, and says why one can't be bought", () => {
@@ -103,15 +136,71 @@ test("sells each pack for platinum tokens, and says why one can't be bought", ()
             `You need ${(raids.price - basic.price - 10).toLocaleString("en")} more platinum tokens.`,
         ),
     ).toBeInTheDocument();
+    // First how likely its cards are by their own rarity, then each one's version
+    expect(within(offer).getByText("Its cards, by their own rarity:")).toBeInTheDocument();
+    // Of what a new save's unlocked of it
+    const shares = packRarityShares(raids, packPool(createSave(), raids));
+    expect(within(offer).getByText(`Rare ${Math.round(shares.rare * 100)}%`)).toBeInTheDocument();
     expect(within(offer).getByText("Rare 75%")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: `Buy the ${packName(basic)}` }));
     expect(screen.getByRole("dialog")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Turn all over" }));
+    vi.useFakeTimers();
+    try {
+        turnAll();
+    } finally {
+        vi.useRealTimers();
+    }
     // No platinum tokens left for another
     expect(screen.queryByRole("button", { name: /Buy another/ })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Done" }));
     expect(screen.getByRole("button", { name: `Buy the ${packName(basic)}` })).toBeDisabled();
 });
+
+test("previews a pack: its cards' hit rates for the save, locked ones and where to unlock them", () => {
+    const showScreen = vi.fn();
+    // The odds are worked out a chunk at a time, on timers
+    vi.useFakeTimers();
+    try {
+        previewPack(showScreen);
+    } finally {
+        vi.useRealTimers();
+    }
+});
+
+function previewPack(showScreen: () => void): void {
+    render(<Harness start={createSave()} showScreen={showScreen} />);
+    fireEvent.click(screen.getByRole("button", { name: "Card shop" }));
+    const weapons = PACK_BY_ID.get("weapons")!;
+    fireEvent.click(screen.getByRole("button", { name: `Preview the ${packName(weapons)}` }));
+    const dialog = screen.getByRole("dialog", { name: `${packName(weapons)}: what's in it` });
+    expect(within(dialog).getByText("Working out the odds...")).toBeInTheDocument();
+    // Locked till the Kalphite Queen's beaten: no rate, and where to unlock it, in words
+    const keris = within(dialog).getByText("Keris partisan").closest("li")!;
+    expect(keris).toHaveClass("ui-pack-preview-locked");
+    expect(within(keris).getByText("Locked")).toBeInTheDocument();
+    expect(within(keris).getByText(`Unlock in: ${mapName(getMap("desert"))}`)).toBeInTheDocument();
+    act(() => {
+        vi.runAllTimers();
+    });
+    expect(
+        within(dialog).getByText("Hit rates for your unlocks, from 100,000 simulated packs."),
+    ).toBeInTheDocument();
+    const scimitar = within(dialog).getByText("Scimitar").closest("li")!;
+    expect(within(scimitar).getByText(/^\d+(\.\d+)?% per pack$/)).toBeInTheDocument();
+    expect(within(keris).queryByText(/per pack/)).toBeNull();
+    // Info: each rarity's chance, as the thing on the card and as its version
+    fireEvent.click(within(dialog).getByRole("button", { name: "Info" }));
+    expect(within(dialog).getByRole("columnheader", { name: "Item" })).toBeInTheDocument();
+    expect(within(dialog).getByRole("columnheader", { name: "Version" })).toBeInTheDocument();
+    expect(within(dialog).getByRole("rowheader", { name: "Very rare" })).toBeInTheDocument();
+    expect(
+        within(dialog).getByText(/^Packs with at least one Very rare item: /),
+    ).toBeInTheDocument();
+    // Escape shuts the preview, not the screen
+    fireEvent.keyDown(window, { code: "Escape", key: "Escape" });
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(showScreen).not.toHaveBeenCalled();
+}
 
 test("shuts the pack's window on Escape before leaving the screen", () => {
     const showScreen = vi.fn();

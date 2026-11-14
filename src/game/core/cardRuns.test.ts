@@ -28,6 +28,7 @@ import {
     getStarterCards,
     hasPetCard,
     isCardLocked,
+    isCardRunBlocked,
     playsCardsOnly,
 } from "./cardRuns";
 import { WeaponState } from "./entities";
@@ -278,11 +279,23 @@ describe("whether a collection can play one", () => {
             },
         };
         expect(isCardLocked(full, "warrior")).toBe(true);
+        // A run from the Cards only tab can't start without the starter card, or short of a level
+        // up's cards, and the usual tab's never blocked
+        expect(isCardRunBlocked(full, "warrior")).toBe(true);
+        expect(isCardRunBlocked({ ...full, cards: { [start]: 1, ...full.cards } }, "warrior")).toBe(
+            false,
+        );
+        expect(isCardRunBlocked({ ...full, cards: { [start]: 1 } }, "warrior")).toBe(true);
+        expect(isCardRunBlocked({ ...full, cardsOnly: undefined, cards: {} }, "warrior")).toBe(
+            false,
+        );
+        expect(isCardRunBlocked({ ...full, cards: {} }, "warrior", { blessings: {} })).toBe(false);
         expect(isCardLocked({ ...full, cardsOnly: undefined }, "warrior")).toBe(false);
         expect(isCardLocked({ ...full, cards: { [start]: 1, ...full.cards } }, "warrior")).toBe(
             false,
         );
-        expect(isCardLocked({ ...full, cards: {} }, "warrior")).toBe(false);
+        // An empty collection's locked too: it hasn't the starter card either
+        expect(isCardLocked({ ...full, cards: {} }, "warrior")).toBe(true);
         // Not on a map whose level ups are blessings, which Cards only doesn't touch
         expect(isCardLocked(full, "warrior", { blessings: {} })).toBe(false);
         // Whether the run will be one: only with the starter card too, and not there

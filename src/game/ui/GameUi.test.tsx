@@ -284,6 +284,7 @@ function renderMaps(mapId = "lumbridge", save = createSave()) {
         playClick: vi.fn(),
         selectPet: vi.fn(),
         selectCardsOnlyPet: vi.fn(),
+        setCardsOnly: vi.fn(),
     };
     render(<GameUi store={store} client={actions as unknown as GameClient} />);
     return actions;
@@ -439,6 +440,52 @@ test("the pet row picks Cards only's pet from pets with their card, when the run
     expect(screen.getByText("Pet:")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Butch" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Little Nightmare/ })).toBeNull();
+});
+
+test("the adventurer panel's tabs pick Cards only or the usual, saying which is on", () => {
+    expect.hasAssertions();
+    const actions = renderMaps("lumbridge");
+    const normal = screen.getByRole("button", { name: "Adventurers" });
+    const cardsOnly = screen.getByRole("button", { name: "Cards only" });
+    expect(normal).toHaveAttribute("aria-pressed", "true");
+    expect(cardsOnly).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(cardsOnly);
+    expect(actions.setCardsOnly).toHaveBeenCalledWith(true);
+    cleanup();
+    // On it with every card a run needs: a line says runs from it are Cards only
+    const full = {
+        "weapon:scimitar": 1,
+        "weapon:two_handed_sword": 1,
+        "weapon:throwing_knives": 1,
+        "weapon:shortbow": 1,
+        "weapon:dark_bow": 1,
+        "passive:rapid_heal": 1,
+        "passive:graceful": 1,
+        "passive:amulet_of_glory": 1,
+    };
+    renderMaps("lumbridge", { ...createSave(), cardsOnly: true, cards: full });
+    expect(screen.getByRole("button", { name: "Cards only" })).toHaveAttribute(
+        "aria-pressed",
+        "true",
+    );
+    expect(screen.getByText("Runs from this tab are Cards only.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Enter Lumbridge/ })).toBeEnabled();
+    cleanup();
+    // Short of cards: no run starts from it, never a normal one in its place
+    renderMaps("lumbridge", { ...createSave(), cardsOnly: true, cards: { "weapon:scimitar": 1 } });
+    expect(screen.getByRole("button", { name: /Enter Lumbridge/ })).toBeDisabled();
+});
+
+test("Cards only's button says what's short and opens the window of what's needed", () => {
+    expect.hasAssertions();
+    renderMaps("lumbridge", { ...createSave(), cardsOnly: true, cards: { "weapon:scimitar": 1 } });
+    const button = screen.getByRole("button", {
+        name: "Need 2 more weapon cards and 3 more passive cards",
+    });
+    fireEvent.click(button);
+    expect(screen.getByRole("dialog", { name: "Cards only: what you need" })).toBeInTheDocument();
+    fireEvent.keyDown(window, { code: "Escape", key: "Escape" });
+    expect(screen.queryByRole("dialog")).toBeNull();
 });
 
 test("a map's own adventurer has no favourite button", () => {

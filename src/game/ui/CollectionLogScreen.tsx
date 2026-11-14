@@ -2,6 +2,7 @@ import { CSSProperties, useMemo, useState } from "react";
 
 import { GameClient } from "../client/GameClient";
 import { UiSnapshot } from "../client/GameStore";
+import { CARDS } from "../content/cards";
 import {
     LOG_TABS,
     LogEntry,
@@ -14,6 +15,7 @@ import { EvolutionDef } from "../content/evolutions";
 import { RARITIES, rarityName } from "../content/rarity";
 import { CLOSE_SPRITES } from "../content/titleIcons";
 import { formatWeaponStat, weaponStats } from "../content/weaponStats";
+import { countCardsOwned } from "../core/cards";
 import { fmtNum, t, tl, useLang } from "../i18n";
 import "./CollectionLogScreen.css";
 import { ItemIcon } from "./ItemIcon";
@@ -88,10 +90,20 @@ export function CollectionLogScreen({ ui, client }: Props): JSX.Element {
                 role="dialog"
                 aria-labelledby="ui-log-title"
             >
+                {/* The log's total on the left, its items only; the cards' own on the right, each
+                    card once, any version; stacked where they won't fit on one line */}
                 <div className="ui-log-head">
-                    <h2 id="ui-log-title" className="ui-log-title">
-                        {t("collection.title")} - {fmtNum(total.found)}/{fmtNum(total.total)}
-                    </h2>
+                    <div className="ui-log-counts">
+                        <h2 id="ui-log-title" className="ui-log-title">
+                            {t("collection.title")} - {fmtNum(total.found)}/{fmtNum(total.total)}
+                        </h2>
+                        <span className="ui-log-title ui-log-cards-count">
+                            {t("collection.cards_count", {
+                                n: fmtNum(countCardsOwned(ui.save)),
+                                total: fmtNum(CARDS.length),
+                            })}
+                        </span>
+                    </div>
                     <CloseButton onClose={close} />
                 </div>
                 <div className="ui-log-tabs" role="group" aria-label={t("collection.tabs")}>

@@ -1,10 +1,10 @@
-import { memo, useEffect, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 
 import { GameClient } from "../client/GameClient";
 import { ReviveView, TeammateView, UiSnapshot } from "../client/GameStore";
-import { describeMissing, parseRoomCode } from "../client/coop/CoopLobby";
+import { describeMissing, parseRoomCode, roomPlaysCardsOnly } from "../client/coop/CoopLobby";
 import { RoomListing, RoomView } from "../client/coop/protocol";
-import { CHARACTERS, getCharacter } from "../content/characters";
+import { CHARACTERS, characterName, getCharacter } from "../content/characters";
 import { MAX_PARTY } from "../content/coop";
 import {
     HARD_PRESET,
@@ -23,8 +23,11 @@ import {
     isCoopMap,
     takesInvocations,
 } from "../content/maps";
+import { getVault } from "../content/vault";
+import { isCardRunBlocked } from "../core/cardRuns";
 import { isEndlessUnlocked, isHardUnlocked, isMapUnlocked } from "../core/save";
 import { fmtNum, list, t, tl, tp, useLang } from "../i18n";
+import { CardNeedsWindow } from "./CardNeeds";
 import { useConfirm } from "./ConfirmDialog";
 import "./CoopScreen.css";
 import { CountryFlag } from "./CountryFlag";
@@ -36,6 +39,7 @@ import {
     RunInvocationsButton,
 } from "./Invocations";
 import { ItemIcon } from "./ItemIcon";
+import { useMenuKeys } from "./menuKeys";
 
 // Co-op: finding a room or making one, then the room itself, where everyone
 // picks their adventurer and readies up and the host picks the map. In a run,
@@ -327,6 +331,29 @@ function CoopLobby({ ui, client, room }: Props & { room: RoomView }): JSX.Elemen
     // The Tombs: the raid level the host's invocations come to (Loadout.invocations), cleaned as
     // the Sim cleans them; the start carries the same ones
     const host = room.members.find((m) => m.id === room.hostId);
+    // Cards only for the whole room, as the host's tab says (roomPlaysCardsOnly; the host's own
+    // tab at once, before its loadout comes back). Who can't play it as their adventurer can't ready.
+    // Never in the weekly Vault's room, which is the same run for everyone
+    const vaultRoom = ui.vaultRoom !== undefined && getVault(ui.vaultRoom).mapId === room.mapId;
+    const cardsOnly =
+        !vaultRoom && (isHost ? ui.save.cardsOnly === true : roomPlaysCardsOnly(room));
+    const cardsSave = useMemo(
+        () => ({ ...ui.save, cardsOnly: cardsOnly || undefined }),
+        [ui.save, cardsOnly],
+    );
+    const runCharacter = getMapCharacter(map) ?? map.fun?.character ?? ui.characterId;
+    const cardBlocked = useMemo(
+        () => isCardRunBlocked(cardsSave, runCharacter, map),
+        [cardsSave, runCharacter, map],
+    );
+    // The host's: who hasn't sent their cards yet, which Start waits for
+    const withoutCards =
+        isHost && cardsOnly && !map.blessings
+            ? room.members.filter((m) => m.id !== you && typeof m.loadout?.cardCaps !== "string")
+            : [];
+    const [needsFor, setNeedsFor] = useState<string>();
+    // Escape shuts what's needed, when it's open
+    useMenuKeys({ onBack: needsFor ? () => setNeedsFor(undefined) : undefined });
     const hostInvocations = isHost ? ui.save.invocations : host?.loadout?.invocations;
     const raidLevel = map.tombs
         ? getRaidLevel(cleanInvocations(Array.isArray(hostInvocations) ? hostInvocations : []))
@@ -375,7 +402,14 @@ function CoopLobby({ ui, client, room }: Props & { room: RoomView }): JSX.Elemen
     };
     return (
         <div className="ui-fill ui-select">
-            <AdventurerPanel ui={ui} client={client} fixed={getMapCharacter(map)} />
+            <AdventurerPanel
+                ui={ui}
+                client={client}
+                fixed={getMapCharacter(map)}
+                cardsOnly={cardsOnly}
+                tabLocked={!isHost}
+                onCardNeeds={setNeedsFor}
+            />
             <div className="ui-panel rs-border rs-background ui-select-panel ui-select-maps ui-coop-party">
                 <h2 className="ui-select-heading">
                     {room.name || t("coop.party")}
@@ -441,12 +475,6 @@ function CoopLobby({ ui, client, room }: Props & { room: RoomView }): JSX.Elemen
                                             label={t("coop.playing_from")}
                                         />
                                         {tl(character.name)}
-                                        {/* Card collection only, theirs (Loadout.cardCaps) */}
-                                        {typeof member.loadout?.cardCaps === "string" && (
-                                            <span className="ui-coop-cards-only">
-                                                {t("coop.cards_only")}
-                                            </span>
-                                        )}
                                     </span>
                                 </span>
                                 <span
@@ -570,6 +598,29 @@ function CoopLobby({ ui, client, room }: Props & { room: RoomView }): JSX.Elemen
                         </div>
                     </div>
                 )}
+                {cardsOnly && !map.blessings && (
+                    <div className="ui-coop-start-hint">{t("coop.cards_only")}</div>
+                )}
+                {withoutCards.length > 0 && (
+                    <div className="ui-coop-start-hint">
+                        {t("coop.cards_waiting", { names: list(withoutCards.map((m) => m.name)) })}
+                    </div>
+                )}
+                {cardsOnly && cardBlocked && (
+                    <div className="ui-coop-cards-blocked">
+                        <span>
+                            {t("coop.cards_blocked", {
+                                name: characterName(getCharacter(runCharacter)),
+                            })}
+                        </span>
+                        <button
+                            className="ui-button ui-button-small"
+                            onClick={() => setNeedsFor(runCharacter)}
+                        >
+                            {t("cards.needs.open")}
+                        </button>
+                    </div>
+                )}
                 {ui.coop.error && <div className="ui-coop-error">{tl(ui.coop.error)}</div>}
                 {isHost && !everyoneReady && (
                     <div className="ui-coop-start-hint">{t("coop.waiting_ready")}</div>
@@ -649,6 +700,8 @@ function CoopLobby({ ui, client, room }: Props & { room: RoomView }): JSX.Elemen
                         (isHost ? "" : " ui-select-go") +
                         (me?.ready ? "" : " ui-button-go")
                     }
+                    // A Cards only room without the cards it takes (cardBlocked): not ready
+                    disabled={!me?.ready && cardBlocked}
                     onClick={() => client.setCoopReady(!me?.ready)}
                 >
                     {me?.ready ? t("coop.not_ready") : t("coop.ready")}
@@ -664,6 +717,14 @@ function CoopLobby({ ui, client, room }: Props & { room: RoomView }): JSX.Elemen
                             ? t("coop.start_hard", { map: tl(map.name) })
                             : t("coop.start", { map: tl(map.name) })}
                     </button>
+                )}
+                {needsFor && (
+                    <CardNeedsWindow
+                        save={cardsSave}
+                        characterId={needsFor}
+                        client={client}
+                        onClose={() => setNeedsFor(undefined)}
+                    />
                 )}
             </div>
             {board && isHost && map.tombs && (

@@ -436,8 +436,11 @@
     }
 }
 
-/* The Collection log's tabs, entries, items and X, big enough for a finger */
+/* The Collection log's tabs, entries, items and X, the Cards screen's tabs and what Cards only
+   needs, big enough for a finger (a pack preview's buttons too) */
 @media (pointer: coarse) {
+    .ui-cards-need-button,
+    .ui-card-needs-head .ui-button,
     .ui-cards-tab,
     .ui-log-tab,
     .ui-log-entry,
@@ -449,8 +452,8 @@
         min-height: 44px;
     }
 
-    .ui-log .ui-log-title {
-        padding: 0 48px;
+    .ui-log-counts {
+        padding-right: 52px;
     }
 
     .ui-log-close {
@@ -836,8 +839,7 @@
     /* Quests and the collection log */
 
     .ui-quests > .ui-subtle,
-    .ui-cards > .ui-subtle,
-    .ui-cards-pack > .ui-subtle {
+    .ui-cards > .ui-subtle {
         display: none;
     }
 

@@ -270,6 +270,9 @@ export class CoopLobby {
     onReconnecting?: () => void;
     onResumed?: () => void;
     onMapChanged?: () => void;
+    // The host's tab changed between Cards only and the usual, or the room has a new host: each
+    // player's loadout goes by it
+    onRoomCardsOnlyChanged?: () => void;
 
     constructor(readonly store: GameStore) {
         this.view = OFFLINE;
@@ -298,10 +301,19 @@ export class CoopLobby {
 
     private update(changes: Partial<CoopView>): void {
         const previousMap = this.view.room?.mapId;
+        const previousCardsOnly = roomPlaysCardsOnly(this.view.room);
+        const previousHost = this.view.room?.hostId;
         this.view = { ...this.view, ...changes };
         this.store.set({ coop: this.view });
         if (this.view.room?.mapId !== previousMap) {
             this.onMapChanged?.();
+        }
+        if (
+            this.view.room &&
+            (roomPlaysCardsOnly(this.view.room) !== previousCardsOnly ||
+                this.view.room.hostId !== previousHost)
+        ) {
+            this.onRoomCardsOnlyChanged?.();
         }
     }
 
@@ -1075,6 +1087,7 @@ export function makeLoadout(
     look?: WardrobeLook,
     relics?: string[],
     cardCaps?: string,
+    cardsOnly?: boolean,
 ): Loadout {
     // Only what's been bought, so it stays small
     const bought = Object.fromEntries(Object.entries(metaStats).filter(([, value]) => value !== 0));
@@ -1088,5 +1101,12 @@ export function makeLoadout(
         ...(trophies && trophies.length > 0 && { trophies }),
         ...(relics && relics.length > 0 && { relics }),
         ...(cardCaps !== undefined && { cardCaps }),
+        ...(cardsOnly && { cardsOnly: true as const }),
     };
+}
+
+// Whether a room plays Cards only: as its host's tab says (Loadout.cardsOnly), for everyone
+export function roomPlaysCardsOnly(room: RoomView | undefined): boolean {
+    const host = room?.members.find((m) => m.id === room.hostId);
+    return host?.loadout?.cardsOnly === true;
 }

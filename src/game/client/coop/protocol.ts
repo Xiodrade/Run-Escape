@@ -25,6 +25,9 @@ export type Loadout = {
     // its rarest version owned (encodeCardCaps), which their own level ups and caskets keep to. Only sent when
     // their collection can play such a run.
     cardCaps?: string;
+    // The host's on the Cards only tab: the whole room plays Cards only (roomPlaysCardsOnly), each
+    // player with their own cards. Only the host's counts.
+    cardsOnly?: true;
 };
 
 // The maps a player has unlocked, and has endless and hard mode for, which

@@ -554,6 +554,10 @@ export type UiSnapshot = {
     // An act's ending being told (its id, content/acts.ts), over whatever screen's up: as the last
     // of its Awakened fights falls, or played again from its card
     actEnding?: string;
+    // The Card shop to open on this pack (content/cards.ts), from Card collection only's needs, and
+    // the screen it was opened from, which its Back goes back to
+    cardShopPack?: string;
+    cardShopFrom?: Screen;
     // What the toasts said this run, newest first, for the pause menu: they're gone in seconds
     toastLog: string[];
     debug: boolean;

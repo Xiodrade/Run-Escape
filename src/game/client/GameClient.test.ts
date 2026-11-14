@@ -38,6 +38,7 @@ import {
     getPhaseBarFraction,
     getShownHp,
     loadoutStats,
+    partyLoadouts,
 } from "./GameClient";
 import { padHints } from "./GamePad";
 import { GameStore } from "./GameStore";
@@ -2676,6 +2677,43 @@ describe("boss attacks' instructions", () => {
         } finally {
             c.restore();
         }
+    });
+});
+
+describe("a co-op room's Cards only", () => {
+    const caps = encodeCardCaps(new Map<string, Rarity>([["weapon:scimitar", "common"]]));
+    const loadout = (cardCaps?: string) => ({
+        metaStats: {},
+        unlockedItems: [],
+        armoury: {},
+        ...(cardCaps !== undefined && { cardCaps }),
+    });
+    it("keeps everyone's cards when the host plays it", () => {
+        const heroes = [
+            { id: "host", loadout: { ...loadout(caps), cardsOnly: true as const } },
+            { id: "guest", loadout: loadout(caps) },
+        ];
+        expect(partyLoadouts(heroes, "host").map((l) => l?.cardCaps)).toEqual([caps, caps]);
+    });
+    it("drops a guest's cards when the host doesn't: no one plays it alone", () => {
+        const heroes = [
+            { id: "host", loadout: loadout() },
+            { id: "guest", loadout: loadout(caps) },
+        ];
+        const party = partyLoadouts(heroes, "host");
+        expect(party.map((l) => l?.cardCaps)).toEqual([undefined, undefined]);
+        expect(cleanLoadout(party[1]).cardCaps).toBeUndefined();
+    });
+    it("drops a new host's cards from before, when their own tab isn't on", () => {
+        // A guest who became host keeps the caps they sent as a guest, but the room's off
+        const heroes = [
+            { id: "newHost", loadout: loadout(caps) },
+            { id: "guest", loadout: loadout(caps) },
+        ];
+        expect(partyLoadouts(heroes, "newHost").map((l) => l?.cardCaps)).toEqual([
+            undefined,
+            undefined,
+        ]);
     });
 });
 

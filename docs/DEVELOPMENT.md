@@ -1446,32 +1446,45 @@ involved.
   `content/cards.ts`): the sim adds them up as kills and bosses come (`Sim.platinum`), each at the
   run's `coinScale` of the moment, so endless runs earn them at coins' reduced rate
   (`ENDLESS_COINS`, less again in later rounds) and hard mode and invocations at coins' raised one.
-  A win adds its share at the end, and `RunResult.platinum` is the whole. In co-op it's the
-  party's, the same on every copy as coins are, and `recordRun` adds it to each player's own save. The icon is the Platinum token item.
+  A win adds its share at the end, and `RunResult.platinum` is the whole. In co-op it's the party's,
+  the same on every copy as coins are, and `recordRun` adds it to each player's own save. The icon
+  is the Platinum token item.
 
-- **Cards are made from content** (`ALL_CARDS` in `content/cards.ts`): one for each weapon,
-  passive, reward casket gear (`CASKET_GEAR`) and trophy, its picture that thing's item icon.
-  Their ids (`weapon:<id>`, `gear:<id>` and so on) are kept in the save, so the ids they're made
-  from must never be renamed, as they already mustn't be. A card from a map that isn't out
-  (`isCardOut`) is left out of packs and the album, but a save keeps it.
+- **Cards are made from content** (`ALL_CARDS` in `content/cards.ts`): one for each weapon, passive,
+  reward casket gear (`CASKET_GEAR`) and trophy, its picture that thing's item icon. Their ids
+  (`weapon:<id>`, `gear:<id>` and so on) are kept in the save, so the ids they're made from must
+  never be renamed, as they already mustn't be. A card from a map that isn't out (`isCardOut`) is
+  left out of packs and the album, but a save keeps it.
 - **Versions** (`cardVersions`): a card comes in each rarity from its own up to Very rare. A
   weapon's, a passive's and gear's own rarity is the game's; a trophy's goes by how hard it is to
   find (`trophyRarity`). `SaveData.cards` keeps the copies of each version: a card's own version
   under its id, the rarer ones as `<id>@<rarity>` (`versionKey`, `parseVersionKey`). The rarity is
   always written on the card, not only shown by its frame's colour.
-- **Packs** (`PACKS`, `core/cards.ts`): each has a pool (`holds`), a price and odds by version;
-  a kind of card each, the raids' finds, and any card but gear (two prices, two sets of odds):
-  gear comes only from its own pack.
-  A card rolls a version by the odds, then a card of the pool that comes in it; in a pack with
-  odds for three rarities or more, the last card never rolls the commonest (`lastCardRarities`),
-  which the shop says. A bought pack opens at once. `SaveData.cardPacks` holds only the free
-  starter pack (a basic one), and counts as `STARTER_PACKS` while unset, so every save gets it
-  once. It holds the starting adventurer's starter cards (`getStarterCards`: their starting
-  weapon's, as adventurers start with no passives or gear) and random cards to `PACK_SIZE`; a save
-  that opened it before then gets the missing ones once on loading (`giveStarterCards`,
+- **Packs** (`PACKS`, `core/cards.ts`): each has a pool (`holds`), a price and odds by version; a
+  kind of card each, the raids' finds, and any card but gear (two prices, two sets of odds): gear
+  comes only from its own pack.
+- **A player's pool** (`packPool`, `isCardUnlocked`): a pack only holds cards of what this player
+  has unlocked, by the game's own rules, worked out from the save as it's opened: a weapon, passive
+  or gear once its map task's done (`isAvailable` on `SaveData.unlockedItems`: the Keris partisan
+  after the Kalphite Queen, the Sun one only with its jewel), an evolution once what it evolves from
+  is, a trophy once its map's open (`isMapUnlocked`). A pack with none can't be bought
+  (`cantBuyCardPack`'s `"locked"`), and the shop counts what's collected of the unlocked ones and of
+  all.
+- **Picking a card** (`packRoller`): by its weight, `CARD_ITEM_WEIGHTS` for its item's rarity times
+  `CARD_TIER_FACTORS` for its tier (`cardTier`: gear by how far up its Armoury line it is,
+  `getArmouryDepth`; weapons 3 for an evolution or a raid's or boss fight's, 2 for a boss kill's, 1
+  for another map's, 0 from the start; passives 1 if a map brings them in; `CARD_TOP_ITEMS` always
+  3), times a pack's `rarer` for Rare and Very rare. Then its version's rolled by the pack's odds,
+  no commoner than the card's own rarity; in a pack with odds for three rarities or more, the last
+  card never rolls the commonest (`lastCardRarities`), which the shop says. All these knobs are in
+  `content/cards.ts`. A bought pack opens at once. `SaveData.cardPacks` holds only the free starter
+  pack (a basic one), and counts as `STARTER_PACKS` while unset, so every save gets it once. It
+  holds the starting adventurer's starter cards (`getStarterCards`: their starting weapon's, as
+  adventurers start with no passives or gear) and random cards to `PACK_SIZE`; a save that opened it
+  before then gets the missing ones once on loading (`giveStarterCards`,
   `SaveData.cardStarterGiven`). Opening takes the client's `Math.random`: it isn't part of a run.
-- **Card collection only** (`core/cardRuns.ts`, `SaveData.cardsOnly`, the run screen's Cards only
-  switch): level ups offer only weapons and passives with a card, no rarer than the rarest version
+- **Card collection only** (`core/cardRuns.ts`, `SaveData.cardsOnly`, the adventurer panel's Cards
+  only tab): level ups offer only weapons and passives with a card, no rarer than the rarest version
   owned (`Upgrades.CardCaps`, `capQuality`); an evolution only with three cards, the weapon's, the
   passive's and what it becomes (`canEvolve`); and a pick into another weapon (a godsword's hilt)
   only with its card, while that leaves two picks (a blade can't be held without a hilt). Reward
@@ -1480,39 +1493,61 @@ involved.
   items (every rarity has some). An item still has to be in the game as usual (`isAvailable`). The
   caps go into the run's setup (`SimOptions.cardCaps`, `HeroOptions.cardCaps`), so the run plays the
   same on every copy and from the same seed.
-- **In co-op** each player's own caps come in their loadout (`Loadout.cardCaps`), as their
-  unlocked items do: a character for each card in `ALL_CARDS`' order (`encodeCardCaps`), which
-  every copy shares as a room runs the host's build, read back by `decodeCardCaps`. It's each
-  player's own choice, for their own level ups and caskets, and the lobby says "Cards only" on
-  their row. The switch is on the run screen only, so co-op players set it before joining.
-- **A weapon's metals** (bronze to dragon) are its levels, not cards of their own, so its one
-  card covers them all: there's no rank to unlock.
+- **In co-op** the whole room is Cards only or none of it is: the host's tab decides
+  (`Loadout.cardsOnly`, `roomPlaysCardsOnly`), and a guest's tabs show it without changing it
+  (`GameClient.playsCardsOnlyHere`, `cardsSave`); never in the weekly Vault's room. Each player's
+  own caps come in their loadout (`Loadout.cardCaps`), as their unlocked items do: a character for
+  each card in `ALL_CARDS`' order (`encodeCardCaps`), which every copy shares as a room runs the
+  host's build, read back by `decodeCardCaps`, for their own level ups and caskets. Each loadout is
+  sent again when the host's tab or the host changes (`onRoomCardsOnlyChanged`), when a pack's
+  opened, and a player who can't play it is un-readied. Who can't play it as their adventurer can't
+  ready (`coopCardBlock`), and the lobby says why with what's needed; the host's Start wants
+  everyone's caps, and the run keeps anyone's only with the host's `cardsOnly` and caps
+  (`partyLoadouts`).
+- **A weapon's metals** (bronze to dragon) are its levels, not cards of their own, so its one card
+  covers them all: there's no rank to unlock.
 - **Pets**: a Card collection only run takes along `SaveData.cardsOnlyPet`, picked on the run
-  screen's pet row while the run will be one (`playsCardsOnly`), and only while its card's owned (`getRunPet`,
-  `hasPetCard`); never `SaveData.pet` in its place, which still needs the real find for other
-  runs. A card pet fights as the real one does. In co-op it's the loadout's `pet`, kept only if
-  the player's caps (which carry pets' cards) have its card (`cleanLoadout`).
-- **When it doesn't play**: the switch is off, saying how many more cards are needed, while the
-  collection can't fill a level up (`getCardRunShortfall`). With it on, an adventurer whose starter
-  cards aren't owned is locked (`getCardLock`, `isCardLocked`): their portrait is dimmed with a
-  drawn padlock (still pickable), their details name the cards, and a solo run can't start as them.
-  A co-op player locked that way plays as usual (their loadout carries no caps), and the co-op
-  screen doesn't show the lock. The Vault never plays it, nor does a map whose level ups are
-  blessings (no switch there). Such a run counts as any other, and its results say it was one.
+  screen's pet row while the run will be one (`playsCardsOnly`), and only while its card's owned
+  (`getRunPet`, `hasPetCard`); never `SaveData.pet` in its place, which still needs the real find
+  for other runs. A card pet fights as the real one does. In co-op it's the loadout's `pet`, kept
+  only if the player's caps (which carry pets' cards) have its card (`cleanLoadout`).
+- **The tab** (the adventurer panel's Adventurers and Cards only, `CardsOnlyTabs`): picked on Cards
+  only, a run is Cards only or doesn't start (`isCardRunBlocked`): not without the adventurer's
+  starter cards (`getCardLock`, `isCardLocked`: their portrait is dimmed with a drawn padlock, still
+  pickable, and their details name the cards) or while the collection can't fill a level up
+  (`getCardRunShortfall`), and the tab's button says what's short. The Vault never plays it, nor
+  does a map whose level ups are blessings. Such a run counts as any other, and its results say it
+  was one.
 - **The screen** (`ui/CardsScreen.tsx`): its classes are `ui-cards-*` and `ui-tcg-*`, since
-  `ui-card` is the level up's. A found card shows big beside the album (in a window of its own on
-  a phone). Rare and Very rare versions have a foil sheen, which passes a few times only on the
-  big card and in a pack's window, and never with `prefers-reduced-motion`.
+  `ui-card` is the level up's. A found card shows big beside the album (in a window of its own on a
+  phone). A pack opens on a playmat that fills the screen (`PackWindow`): its cards in a deck, each
+  press dealing the top one face up into the row with a turn (none with `prefers-reduced-motion`);
+  the row is scaled to the mat's own room (`matLayout`, measured, as the UI can be drawn bigger than
+  the window), not below a size its words can be read at where the height allows, and overlaps the
+  cards where it's still too wide. A dealt card pressed shows big. Rare and Very rare versions have
+  a foil sheen, which passes a few times only on the big card and in a pack's window, and never with
+  `prefers-reduced-motion`.
+- **A pack's preview** (`ui/PackPreview.tsx`, `core/cardOdds.ts`): the shop's Preview lists every
+  card a pack can hold, by rarity, each with its chance to be in one pack for this save, or Locked
+  with the map that unlocks it (`cardUnlockMap`); Info shows the rarity rates (each card's item
+  rarity and version, and packs with a Very rare item). The figures are `PREVIEW_PACKS` packs rolled
+  as a bought one is (`simulatePackOdds`), a chunk at a time so a phone doesn't stall, on a
+  generator seeded by the pack and pool, and kept till the pool changes; a test holds them to
+  `exactPackOdds`.
+- **What Cards only needs** (`ui/CardNeeds.tsx`): the run screen's button and the window it opens
+  both go by `getCardRunNeeds`, as the run's check does (`getCardRunShortfall`), so they agree; the
+  window lists only what's still missing, with the Card shop on its pack
+  (`GameClient.openCardShop`).
 - **The Collection log's Cards tab** (`getCardEntries` in `content/collectionLog.ts`): a set for
-  each kind of card, then the raids' finds, each card at its rarest version owned, its slot
-  ringed in that version's colour and the version said in words. Its entries count themselves:
-  the log's title total leaves the tab out (`getLogTotal`), so it's the game's own finds. A
-  trophy first found in a Card collection only run is listed in `SaveData.cardsOnlyFinds`
-  (`recordRun`, from the run's `RunSummary.cardsOnly` and its own `trophies`, each co-op
-  player's own), and the log gives
-  its slot a little drawn card and its description "First found in a Cards only run".
-- **Loading** (`migrateCards`, from `migrateSave`): only versions of cards that exist, whole
-  counts capped at `MAX_CARD_COPIES` and `MAX_CARD_PACKS`.
+  each kind of card, then the raids' finds, each card at its rarest version owned, its slot ringed
+  in that version's colour and the version said in words. Its entries count themselves: the log's
+  title total leaves the tab out (`getLogTotal`), so it's the game's own finds, and the cards' own
+  count (each card once) sits on the right of the title bar. A trophy first found in a Card
+  collection only run is listed in `SaveData.cardsOnlyFinds` (`recordRun`, from the run's
+  `RunSummary.cardsOnly` and its own `trophies`, each co-op player's own), and the log gives its
+  slot a little drawn card and its description "First found in a Cards only run".
+- **Loading** (`migrateCards`, from `migrateSave`): only versions of cards that exist, whole counts
+  capped at `MAX_CARD_COPIES` and `MAX_CARD_PACKS`.
 
 ### Thanksgiving's Avian Assaulter
 

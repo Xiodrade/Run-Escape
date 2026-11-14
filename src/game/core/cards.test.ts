@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import {
     BASIC_PACK,
     CARD_BY_ID,
+    CARD_TIER_FACTORS,
+    CARD_TOP_ITEMS,
     CardDef,
     MAX_CARD_COPIES,
     MAX_CARD_PACKS,
@@ -11,10 +13,13 @@ import {
     PACK_BY_ID,
     PACK_SIZE,
     STARTER_PACKS,
+    cardTier,
     cardVersions,
+    cardWeight,
     packCards,
+    packRarityShares,
 } from "../content/cards";
-import { RARITY_ORDER } from "../content/rarity";
+import { RARITY_ORDER, atLeast } from "../content/rarity";
 import { getStarterCards } from "./cardRuns";
 import {
     buyCardPack,
@@ -24,9 +29,11 @@ import {
     getCardCopies,
     getCardPacks,
     getOwnedVersions,
+    isCardUnlocked,
     lastCardRarities,
     migrateCards,
     openCardPack,
+    packPool,
 } from "./cards";
 import { RunSummary, createSave, exportSave, importSave, migrateSave, recordRun } from "./save";
 
@@ -101,31 +108,106 @@ describe("buying packs", () => {
             // The lowest roll every time
             const cards = buyCardPack(save, pack, () => 0)!;
             const rarities = RARITY_ORDER.filter((rarity) => pack.odds[rarity] > 0);
-            expect(cards[0].rarity, pack.id).toBe(rarities[0]);
-            expect(cards[cards.length - 1].rarity === rarities[0], pack.id).toBe(
-                rarities.length < 3,
-            );
+            // Its commonest version, or the card's own rarity where that's rarer
+            const first = cards[0];
+            expect(first.rarity, pack.id).toBe(atLeast(rarities[0], first.card.rarity));
+            const last = cards[cards.length - 1];
+            if (rarities.length < 3) {
+                expect(last.rarity, pack.id).toBe(atLeast(rarities[0], last.card.rarity));
+            } else {
+                expect(last.rarity, pack.id).not.toBe(rarities[0]);
+            }
         }
         // The Raider's pack has two: its last card can be Rare, as its odds say
         expect(lastCardRarities(PACK_BY_ID.get("raids")!.odds)).toEqual(["rare", "veryRare"]);
     });
 
-    it("rolls versions in proportion to the pack's odds", () => {
+    it("rolls versions in proportion to the pack's odds, never below the card's own", () => {
         const pack = PACK_BY_ID.get("champion")!;
         const save = { ...createSave(), platinum: pack.price * 3000 };
         const counts: Record<string, number> = {};
+        let total = 0;
         const random = spread();
         for (let i = 0; i < 3000; i++) {
             // The first four, which roll by the odds as they are
-            for (const { rarity } of buyCardPack(save, pack, random)!.slice(0, -1)) {
-                counts[rarity] = (counts[rarity] ?? 0) + 1;
+            for (const { card, rarity } of buyCardPack(save, pack, random)!.slice(0, -1)) {
+                expect(index(rarity)).toBeGreaterThanOrEqual(index(card.rarity));
+                // A Common card's version is the roll itself
+                if (card.rarity === "common") {
+                    counts[rarity] = (counts[rarity] ?? 0) + 1;
+                    total++;
+                }
             }
         }
-        const total = 3000 * (PACK_SIZE - 1);
-        expect(counts.common ?? 0).toBe(0);
-        for (const rarity of ["uncommon", "rare", "veryRare"] as const) {
+        for (const rarity of RARITY_ORDER) {
             expect(Math.abs(counts[rarity] / total - pack.odds[rarity]), rarity).toBeLessThan(0.02);
         }
+    });
+
+    it("holds only what the player's unlocked: a locked thing never comes", () => {
+        const save = { ...createSave(), platinum: BASIC_PACK.price * 2000 };
+        const random = spread(7);
+        const seen = new Set<string>();
+        for (let i = 0; i < 2000; i++) {
+            for (const { card } of buyCardPack(save, BASIC_PACK, random)!) {
+                seen.add(card.id);
+            }
+        }
+        for (const id of seen) {
+            expect(isCardUnlocked(createSave(), card(id)), id).toBe(true);
+        }
+        expect(seen.has("weapon:keris_partisan")).toBe(false);
+        // A new save's pool is smaller than the whole pack's
+        expect(packPool(createSave(), BASIC_PACK).length).toBeLessThan(
+            packCards(BASIC_PACK).length,
+        );
+    });
+
+    it("puts a thing in the pool once it's unlocked, as the game unlocks it", () => {
+        const fresh = createSave();
+        const pool = (save: typeof fresh) =>
+            packPool(save, PACK_BY_ID.get("weapons")!).map((c) => c.id);
+        expect(pool(fresh)).not.toContain("weapon:keris_partisan");
+        // The Kalphite Queen beaten: the Keris partisan, but not the Sun's till its jewel
+        const queen = { ...fresh, unlockedItems: ["keris_partisan"] };
+        expect(pool(queen)).toContain("weapon:keris_partisan");
+        expect(pool(queen)).not.toContain("weapon:keris_partisan_of_the_sun");
+        const jewel = { ...fresh, unlockedItems: ["keris_partisan", "keris_partisan_of_the_sun"] };
+        expect(pool(jewel)).toContain("weapon:keris_partisan_of_the_sun");
+        // A trophy once its map's open: the Tombs' behind its quest
+        const tombs = packPool(fresh, PACK_BY_ID.get("trophies")!).filter(
+            (c) => c.mapId === "tombs_of_amascut",
+        );
+        expect(tombs).toEqual([]);
+    });
+
+    it("makes the strongest things rarer pulls than others of their rarity", () => {
+        const infernal = card("gear:infernal_cape");
+        const fire = card("gear:fire_cape");
+        expect(infernal.rarity).toBe(fire.rarity);
+        expect(cardTier(infernal)).toBeGreaterThan(cardTier(fire));
+        expect(cardWeight(BASIC_PACK, infernal)).toBeLessThan(cardWeight(BASIC_PACK, fire));
+        // The Harmonised nightmare staff, Rare in the game, against a lesser Rare weapon
+        const staff = card("weapon:harmonised_nightmare_staff");
+        const lesser = packCards(BASIC_PACK).find(
+            (c) => c.kind === "weapon" && c.rarity === staff.rarity && cardTier(c) < 3,
+        )!;
+        expect(cardWeight(BASIC_PACK, staff)).toBeLessThan(cardWeight(BASIC_PACK, lesser));
+        // Every top item's a card
+        for (const id of CARD_TOP_ITEMS) {
+            expect(CARD_BY_ID.has(id), id).toBe(true);
+            expect(cardTier(card(id))).toBe(CARD_TIER_FACTORS.length - 1);
+        }
+    });
+
+    it("makes the Champion's pack's Rare and Very rare cards likelier than a basic pack's", () => {
+        const basic = packRarityShares(BASIC_PACK);
+        const champion = packRarityShares(PACK_BY_ID.get("champion")!);
+        expect(champion.veryRare).toBeGreaterThan(basic.veryRare * 1.3);
+        expect(champion.rare).toBeGreaterThan(basic.rare);
+        // Shares of the pack: they add up to all of it
+        const total = RARITY_ORDER.reduce((sum, r) => sum + champion[r], 0);
+        expect(total).toBeCloseTo(1, 6);
     });
 
     it("gives runs no packs: they pay platinum tokens, apart from their coins", () => {

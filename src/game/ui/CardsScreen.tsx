@@ -1,4 +1,4 @@
-import { CSSProperties, useEffect, useRef, useState } from "react";
+import { CSSProperties, RefObject, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { GameClient } from "../client/GameClient";
 import { UiSnapshot } from "../client/GameStore";
@@ -20,6 +20,7 @@ import {
     packCards,
     packDescription,
     packName,
+    packRarityShares,
 } from "../content/cards";
 import { RARITIES, RARITY_ORDER, Rarity, rarityName } from "../content/rarity";
 import {
@@ -32,11 +33,13 @@ import {
     getOwnedVersions,
     getPlatinum,
     lastCardRarities,
+    packPool,
 } from "../core/cards";
 import type { SaveData } from "../core/save";
 import { fmtNum, list, t, tp } from "../i18n";
 import "./CardsScreen.css";
 import { ItemIcon } from "./ItemIcon";
+import { PackPreview } from "./PackPreview";
 import { Platinum } from "./Platinum";
 import { useMenuKeys } from "./menuKeys";
 import { useDialog } from "./useDialog";
@@ -51,15 +54,31 @@ type Tab = "all" | CardKind;
 
 export function CardsScreen({ ui, client }: Props): JSX.Element {
     const save = ui.save;
-    const [view, setView] = useState<"album" | "shop">("album");
+    // Opened on the shop by what Card collection only needs (GameClient.openCardShop): on its pack
+    const [view, setView] = useState<"album" | "shop">(
+        ui.cardShopPack !== undefined ? "shop" : "album",
+    );
+    const [focusPack] = useState(ui.cardShopPack || undefined);
+    // Opened from the run screen (Card collection only's needs): Back goes back there
+    const [backTo] = useState(ui.cardShopFrom ?? "title");
+    useEffect(() => {
+        if (ui.cardShopPack !== undefined) {
+            client.cardShopShown();
+        }
+        // Once, as the screen opens
+    }, []);
     const [tab, setTab] = useState<Tab>("all");
     const cards = tab === "all" ? CARDS : CARDS.filter((card) => card.kind === tab);
     const [shownId, setShownId] = useState<string | undefined>(undefined);
     const shown = cards.find((card) => card.id === shownId) ?? cards[0];
     // The pack just opened, and which it was
     const [opened, setOpened] = useState<{ pack: PackDef; cards: PackCard[] } | undefined>();
+    // A pack's preview, from the shop (ui/PackPreview.tsx)
+    const [previewing, setPreviewing] = useState<PackDef | undefined>();
     // A found card shown big in a window of its own, where there's no room for it beside the grid
-    const [viewing, setViewing] = useState<CardDef | undefined>(undefined);
+    const [viewing, setViewing] = useState<{ card: CardDef; rarity?: Rarity } | undefined>(
+        undefined,
+    );
     const packs = getCardPacks(save);
     const backRef = useRef<HTMLButtonElement>(null);
     // A pack's window gives the focus back to the button that opened it, which can be gone or
@@ -73,10 +92,10 @@ export function CardsScreen({ ui, client }: Props): JSX.Element {
     const pick = (card: CardDef) => {
         setShownId(card.id);
         if (getCardCopies(save, card.id) > 0 && window.matchMedia?.(NARROW).matches) {
-            setViewing(card);
+            setViewing({ card });
         }
     };
-    const back = () => client.showScreen("title");
+    const back = () => client.showScreen(backTo);
     const openHeld = () => {
         const cards = client.openCardPack();
         if (cards) {
@@ -91,7 +110,13 @@ export function CardsScreen({ ui, client }: Props): JSX.Element {
     };
     // Escape shuts a window first (a pack's cards are already in the album)
     useMenuKeys({
-        onBack: opened ? () => setOpened(undefined) : viewing ? () => setViewing(undefined) : back,
+        onBack: viewing
+            ? () => setViewing(undefined)
+            : opened
+              ? () => setOpened(undefined)
+              : previewing
+                ? () => setPreviewing(undefined)
+                : back,
     });
     const again = (pack: PackDef): { label: string; run: () => void } | undefined => {
         if (pack === BASIC_PACK && packs > 0) {
@@ -181,7 +206,12 @@ export function CardsScreen({ ui, client }: Props): JSX.Element {
                         {shown && <CardDetail save={save} card={shown} />}
                     </div>
                 ) : (
-                    <CardShop save={save} onBuy={buy} />
+                    <CardShop
+                        save={save}
+                        onBuy={buy}
+                        onPreview={setPreviewing}
+                        focusPack={focusPack}
+                    />
                 )}
                 <div className="ui-row">
                     <button ref={backRef} className="ui-button" onClick={back}>
@@ -201,8 +231,12 @@ export function CardsScreen({ ui, client }: Props): JSX.Element {
                     )}
                 </div>
             </div>
-            {viewing && (
-                <CardWindow save={save} card={viewing} onClose={() => setViewing(undefined)} />
+            {previewing && (
+                <PackPreview
+                    save={save}
+                    pack={previewing}
+                    onClose={() => setPreviewing(undefined)}
+                />
             )}
             {opened && (
                 <PackWindow
@@ -212,9 +246,40 @@ export function CardsScreen({ ui, client }: Props): JSX.Element {
                     cards={opened.cards}
                     client={client}
                     again={again(opened.pack)}
+                    viewing={viewing !== undefined}
+                    onView={(dealt) => setViewing({ card: dealt.card, rarity: dealt.rarity })}
                     onClose={() => setOpened(undefined)}
                 />
             )}
+            {/* Over the pack's mat too: a dealt card shown big */}
+            {viewing && (
+                <CardWindow
+                    save={save}
+                    card={viewing.card}
+                    rarity={viewing.rarity}
+                    onClose={() => setViewing(undefined)}
+                />
+            )}
+        </div>
+    );
+}
+
+// A line of odds by rarity, each in its colour, those above none only. A share under 1% says
+// "under 1%" rather than rounding to none.
+function OddsLine({ title, odds }: { title: string; odds: Record<Rarity, number> }): JSX.Element {
+    return (
+        <div className="ui-cards-offer-odds">
+            <span>{title}</span>
+            {RARITY_ORDER.filter((r) => odds[r] > 0).map((rarity) => (
+                <span key={rarity} style={{ color: RARITIES[rarity].color }}>
+                    {odds[rarity] < 0.01
+                        ? t("cards.odds_under", { rarity: rarityName(rarity) })
+                        : t("cards.odds", {
+                              rarity: rarityName(rarity),
+                              n: fmtNum(Math.round(odds[rarity] * 100)),
+                          })}
+                </span>
+            ))}
         </div>
     );
 }
@@ -224,32 +289,48 @@ export function CardsScreen({ ui, client }: Props): JSX.Element {
 function CardShop({
     save,
     onBuy,
+    onPreview,
+    focusPack,
 }: {
     save: SaveData;
     onBuy: (pack: PackDef) => void;
+    onPreview: (pack: PackDef) => void;
+    // A pack to show first (scrolled to, its Buy button focused)
+    focusPack?: string;
 }): JSX.Element {
+    const focused = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+        focused.current?.scrollIntoView({ block: "nearest" });
+        focused.current?.querySelector("button")?.focus({ preventScroll: true });
+    }, []);
     return (
         <div className="ui-cards-shop">
+            <p className="ui-subtle ui-cards-shop-note">{t("cards.shop_note")}</p>
             {PACKS.map((pack) => {
-                const pool = packCards(pack);
+                // What this player's unlocked of it (packPool): all it can give them now
+                const pool = packPool(save, pack);
+                const all = packCards(pack);
                 const why = cantBuyCardPack(save, pack);
                 return (
-                    <div key={pack.id} className="ui-cards-offer">
+                    <div
+                        key={pack.id}
+                        ref={pack.id === focusPack ? focused : undefined}
+                        className={
+                            "ui-cards-offer" +
+                            (pack.id === focusPack ? " ui-cards-offer-focus" : "")
+                        }
+                    >
                         <PackFront pack={pack} />
                         <div className="ui-cards-offer-text">
                             <div className="ui-cards-offer-name">{packName(pack)}</div>
                             <div className="ui-cards-offer-desc">{packDescription(pack)}</div>
-                            <div className="ui-cards-offer-odds">
-                                <span>{t("cards.odds_title")}</span>
-                                {RARITY_ORDER.filter((r) => pack.odds[r] > 0).map((rarity) => (
-                                    <span key={rarity} style={{ color: RARITIES[rarity].color }}>
-                                        {t("cards.odds", {
-                                            rarity: rarityName(rarity),
-                                            n: fmtNum(Math.round(pack.odds[rarity] * 100)),
-                                        })}
-                                    </span>
-                                ))}
-                            </div>
+                            {pool.length > 0 && (
+                                <OddsLine
+                                    title={t("cards.odds_items")}
+                                    odds={packRarityShares(pack, pool)}
+                                />
+                            )}
+                            <OddsLine title={t("cards.odds_title")} odds={pack.odds} />
                             {lastCardRarities(pack.odds).length <
                                 RARITY_ORDER.filter((r) => pack.odds[r] > 0).length && (
                                 <div className="ui-cards-offer-desc">
@@ -259,13 +340,21 @@ function CardShop({
                                 </div>
                             )}
                             <div className="ui-cards-offer-owned">
-                                {t("cards.collected", {
+                                {t("cards.collected_unlocked", {
                                     n: fmtNum(countCardsOwned(save, pool)),
                                     total: fmtNum(pool.length),
+                                    all: fmtNum(all.length),
                                 })}
                             </div>
                             <div className="ui-cards-offer-buy">
                                 <Platinum amount={pack.price} />
+                                <button
+                                    className="ui-button"
+                                    aria-label={t("cards.preview_pack", { name: packName(pack) })}
+                                    onClick={() => onPreview(pack)}
+                                >
+                                    {t("cards.preview")}
+                                </button>
                                 <button
                                     className="ui-button"
                                     disabled={why !== undefined}
@@ -275,6 +364,9 @@ function CardShop({
                                     {t("cards.buy")}
                                 </button>
                             </div>
+                            {why === "locked" && (
+                                <div className="ui-cards-offer-why">{t("cards.pack_locked")}</div>
+                            )}
                             {why === "platinum" && (
                                 <div className="ui-cards-offer-why">
                                     {tp("cards.need_platinum", pack.price - getPlatinum(save))}
@@ -450,10 +542,13 @@ function CardDetail({ save, card }: { save: SaveData; card: CardDef }): JSX.Elem
 function CardWindow({
     save,
     card,
+    rarity,
     onClose,
 }: {
     save: SaveData;
     card: CardDef;
+    // The version to show (a card just dealt's), else the rarest owned
+    rarity?: Rarity;
     onClose: () => void;
 }): JSX.Element {
     const { dialogProps } = useDialog<HTMLDivElement>();
@@ -466,7 +561,12 @@ function CardWindow({
                 className="ui-panel rs-border rs-background ui-cards-view"
                 onClick={(event) => event.stopPropagation()}
             >
-                <CardFace card={card} rarity={getBestVersion(save, card)!} size="big" moving />
+                <CardFace
+                    card={card}
+                    rarity={rarity ?? getBestVersion(save, card)!}
+                    size="big"
+                    moving
+                />
                 <Versions save={save} card={card} />
                 <button className="ui-button" onClick={onClose}>
                     {t("cards.close")}
@@ -476,82 +576,189 @@ function CardWindow({
     );
 }
 
-// A pack just opened: its cards face down, each turned over when picked (or all at once), the new
-// ones marked; then the same pack again, if there's one held or the coins for it
+// How long "Turn all over" waits between the cards it deals
+const DEAL_ALL_MS = 220;
+
+// The mat's row as small cards lay it out (CardsScreen.css): the deck (140 wide) and five slots
+// (130 with their borders, 12 apart), 224 high, and what the mat keeps round it (its padding, the
+// name above, the buttons below), all in the UI's own pixels
+const MAT_DECK_WIDTH = 140 + 12;
+const MAT_ROW_WIDTH = 5 * 130 + 4 * 12;
+const MAT_ROW_HEIGHT = 224;
+const MAT_EDGE = 28;
+const MAT_TOP = 64;
+const MAT_BOTTOM = 72;
+// The smallest the cards are drawn: smaller and their words can't be read on a phone, so the
+// cards overlap instead
+const MAT_MIN_SCALE = 1.1;
+const MAT_MAX_SCALE = 2.4;
+
+// The mat's scale for its size, and how far each dealt card overlaps the one before where even
+// that's too wide (a short phone held sideways): as big as fits, never below MAT_MIN_SCALE
+// (the deck's left out once it's all dealt, so the row has its room)
+function matLayout(
+    width: number,
+    height: number,
+    deck: boolean,
+): { scale: number; overlap: number } {
+    const roomW = width - 2 * MAT_EDGE;
+    const roomH = height - MAT_TOP - MAT_BOTTOM;
+    const rowWidth = MAT_ROW_WIDTH + (deck ? MAT_DECK_WIDTH : 0);
+    const fits = Math.min(roomW / rowWidth, roomH / MAT_ROW_HEIGHT);
+    const scale = Math.min(
+        MAT_MAX_SCALE,
+        Math.max(fits, Math.min(MAT_MIN_SCALE, roomH / MAT_ROW_HEIGHT)),
+    );
+    const overlap = Math.max(0, (rowWidth - roomW / scale) / 4);
+    return { scale, overlap };
+}
+
+// The layout for the mat as it's drawn: its own size, in the UI's pixels (the UI can be drawn
+// bigger than the window's, GameUi's scale)
+function useMatLayout(deck: boolean): {
+    ref: RefObject<HTMLDivElement | null>;
+    layout: { scale: number; overlap: number };
+} {
+    const ref = useRef<HTMLDivElement>(null);
+    const [layout, setLayout] = useState({ scale: 1, overlap: 0 });
+    // Before it's painted, so it's never drawn at the wrong size first
+    useLayoutEffect(() => {
+        const mat = ref.current;
+        if (!mat) {
+            return;
+        }
+        const measure = () => setLayout(matLayout(mat.clientWidth, mat.clientHeight, deck));
+        measure();
+        if (typeof ResizeObserver === "undefined") {
+            return;
+        }
+        const observer = new ResizeObserver(measure);
+        observer.observe(mat);
+        return () => observer.disconnect();
+    }, [deck]);
+    return { ref, layout };
+}
+
+// A pack just opened, on a playmat that takes the whole screen: its cards in one deck face down,
+// each press of the deck dealing the top one out face up beside it (a turn as it slides, but for
+// prefers-reduced-motion), with its rarity's sound; Turn all over deals the rest one after
+// another. A dealt card pressed shows big. Then the same pack again, if there's one held or the
+// platinum for it.
 function PackWindow({
     pack,
     cards,
     client,
     again,
+    viewing,
+    onView,
     onClose,
 }: {
     pack: PackDef;
     cards: PackCard[];
     client: GameClient;
     again?: { label: string; run: () => void };
+    // A dealt card's shown big over the mat: the mat's out of reach meanwhile
+    viewing: boolean;
+    onView: (card: PackCard) => void;
     onClose: () => void;
 }): JSX.Element {
-    const [turned, setTurned] = useState<boolean[]>(() => cards.map(() => false));
+    // How many are dealt out so far
+    const [dealt, setDealt] = useState(0);
+    const [rushing, setRushing] = useState(false);
     const { titleId, dialogProps } = useDialog<HTMLDivElement>();
-    const allTurned = turned.every(Boolean);
-    // Turn all over goes as it's pressed, and the last card turned is no use pressed again: the
-    // focus goes to Done, so a keyboard or a controller carries on from there
-    const doneRef = useRef<HTMLButtonElement>(null);
+    const allTurned = dealt >= cards.length;
+    const { ref: matRef, layout } = useMatLayout(!allTurned);
+    const { scale, overlap } = layout;
+    const deal = () => {
+        if (dealt < cards.length) {
+            client.revealCard(cards[dealt].rarity);
+            setDealt(dealt + 1);
+        }
+    };
+    // Turn all over: the rest, one after another
     useEffect(() => {
-        if (allTurned) {
+        if (!rushing || allTurned) {
+            return;
+        }
+        const timer = setTimeout(deal, dealt === 0 ? 0 : DEAL_ALL_MS);
+        return () => clearTimeout(timer);
+        // deal is this render's, which goes by dealt
+    }, [rushing, dealt, allTurned]);
+    // The deck goes as its last card's dealt, and Turn all over as it's pressed: the focus goes to
+    // Done, so a keyboard or a controller carries on from there
+    const doneRef = useRef<HTMLButtonElement>(null);
+    // (not from a card shown big over the mat)
+    useEffect(() => {
+        if (allTurned && !viewing) {
             doneRef.current?.focus({ preventScroll: true });
         }
-    }, [allTurned]);
-    const turn = (i: number) => {
-        if (!turned[i]) {
-            client.revealCard(cards[i].rarity);
-            setTurned((was) => was.map((up, j) => up || j === i));
-        }
-    };
-    const turnAll = () => {
-        // One sound, the rarest's
-        const hidden = cards.filter((_, i) => !turned[i]);
-        const rarest = hidden
-            .map((c) => c.rarity)
-            .sort((a, b) => RARITY_ORDER.indexOf(b) - RARITY_ORDER.indexOf(a))[0];
-        if (rarest) {
-            client.revealCard(rarest);
-        }
-        setTurned(cards.map(() => true));
-    };
+    }, [allTurned, viewing]);
+    const left = cards.length - dealt;
     return (
-        <div className="ui-modal">
-            <div {...dialogProps} className="ui-panel rs-border rs-background ui-cards-pack">
-                <h2 id={titleId} className="ui-cards-pack-title">
-                    <ItemIcon objId={pack.objId} size={32} />
-                    {packName(pack)}
-                </h2>
-                <p className="ui-subtle">{t("cards.pack_hint")}</p>
-                <div className="ui-cards-pack-row">
-                    {cards.map(({ card, rarity, isNew }, i) => (
-                        <button
-                            key={i}
-                            className="ui-cards-slot"
-                            aria-label={turned[i] ? card.name() : t("cards.face_down")}
-                            onClick={() => turn(i)}
-                        >
-                            {turned[i] ? (
-                                <span className="ui-tcg-turned">
-                                    <CardFace
-                                        card={card}
-                                        rarity={rarity}
-                                        size="small"
-                                        isNew={isNew}
-                                        moving
-                                    />
-                                </span>
-                            ) : (
-                                <CardBack size="small" />
-                            )}
-                        </button>
-                    ))}
+        <div className="ui-modal ui-tcg-mat-screen">
+            <div {...dialogProps} className="ui-tcg-mat" inert={viewing || undefined}>
+                {/* What the row's sized to: the mat's own room */}
+                <div ref={matRef} className="ui-tcg-mat-measure" aria-hidden="true" />
+                <div className="ui-tcg-mat-head">
+                    <h2 id={titleId} className="ui-tcg-mat-title">
+                        <ItemIcon objId={pack.objId} size={32} />
+                        {packName(pack)}
+                    </h2>
+                    <p className="ui-tcg-mat-hint">{t("cards.pack_hint")}</p>
                 </div>
-                <div className="ui-row">
+                <div
+                    className="ui-tcg-mat-play"
+                    style={{ zoom: scale, "--mat-overlap": `${overlap}px` } as CSSProperties}
+                >
+                    {left > 0 && (
+                        <div className="ui-tcg-mat-deck">
+                            <button
+                                className="ui-tcg-deck"
+                                aria-label={tp("cards.deck", left)}
+                                // While Turn all over deals, the deck's dealing itself
+                                onClick={rushing ? undefined : deal}
+                            >
+                                {/* The stack, a card for each left, each a little off the last */}
+                                {Array.from({ length: left }, (_, i) => (
+                                    <span
+                                        key={i}
+                                        className="ui-tcg-deck-card"
+                                        style={{ "--deck-i": i } as CSSProperties}
+                                    >
+                                        <CardBack size="small" />
+                                    </span>
+                                ))}
+                            </button>
+                        </div>
+                    )}
+                    <ol className="ui-tcg-mat-row">
+                        {cards.map((dealtCard, i) => (
+                            <li key={i} className="ui-tcg-mat-slot">
+                                {i < dealt && (
+                                    <button
+                                        className="ui-tcg-deal"
+                                        aria-label={dealtCard.card.name()}
+                                        onClick={() => onView(dealtCard)}
+                                    >
+                                        <span className="ui-tcg-deal-back" aria-hidden="true">
+                                            <CardBack size="small" />
+                                        </span>
+                                        <span className="ui-tcg-deal-face">
+                                            <CardFace
+                                                card={dealtCard.card}
+                                                rarity={dealtCard.rarity}
+                                                size="small"
+                                                isNew={dealtCard.isNew}
+                                                moving
+                                            />
+                                        </span>
+                                    </button>
+                                )}
+                            </li>
+                        ))}
+                    </ol>
+                </div>
+                <div className="ui-tcg-mat-foot">
                     {allTurned ? (
                         <>
                             <button ref={doneRef} className="ui-button" onClick={onClose}>
@@ -564,11 +771,15 @@ function PackWindow({
                             )}
                         </>
                     ) : (
-                        <button className="ui-button" onClick={turnAll}>
+                        // Stays as it is while it deals (a disabled button would drop the focus)
+                        <button className="ui-button" onClick={() => setRushing(true)}>
                             {t("cards.turn_all")}
                         </button>
                     )}
                 </div>
+                <span className="ui-tcg-mat-mark" aria-hidden="true">
+                    Run Escape
+                </span>
             </div>
         </div>
     );

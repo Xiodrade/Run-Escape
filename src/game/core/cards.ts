@@ -10,12 +10,18 @@ import {
     PackDef,
     STARTER_PACKS,
     cardVersions,
+    cardWeight,
     packCards,
+    packRarityShares,
     parseVersionKey,
     versionKey,
 } from "../content/cards";
-import { RARITY_ORDER, Rarity } from "../content/rarity";
-import type { SaveData } from "./save";
+import { getGear } from "../content/items";
+import { PASSIVES } from "../content/passives";
+import { RARITY_ORDER, Rarity, atLeast } from "../content/rarity";
+import { isAvailable } from "../content/unlocks";
+import { WEAPONS, getWeapon } from "../content/weapons";
+import { type SaveData, isMapUnlocked } from "./save";
 
 // Cards in the save (content/cards.ts has what they are): the packs held unopened (only ever the
 // free starter pack, a basic one: bought packs open as they're bought) and the copies of each
@@ -40,8 +46,65 @@ export function addPlatinum(save: SaveData, points: number | undefined): void {
     }
 }
 
-// Why a pack can't be bought, or undefined if it can: only platinum tokens buy them, never coins
-export function cantBuyCardPack(save: SaveData, pack: PackDef): "platinum" | undefined {
+// Whether a card's thing is unlocked for this player, as the game's own rules have it: a weapon,
+// passive or casket gear once its map task's done (isAvailable: the Keris partisan once the
+// Kalphite Queen's beaten, the Sun one only with the Jewel of the sun), an evolution once what it
+// evolves from and the passive it takes are, and a trophy once the map it's found on is open. A
+// pack only holds these.
+export function isCardUnlocked(save: SaveData, card: CardDef): boolean {
+    const unlocked = new Set(save.unlockedItems);
+    return cardUnlocked(save, card, unlocked);
+}
+
+function cardUnlocked(save: SaveData, card: CardDef, unlocked: ReadonlySet<string>): boolean {
+    const id = card.id.slice(card.id.indexOf(":") + 1);
+    switch (card.kind) {
+        case "weapon": {
+            const weapon = getWeapon(id);
+            return (
+                isAvailable(weapon, unlocked) &&
+                (!weapon.evolved ||
+                    WEAPONS.some(
+                        (from) =>
+                            from.evolution?.into === weapon.id &&
+                            !from.evolved &&
+                            isAvailable(from, unlocked) &&
+                            isAvailable(
+                                PASSIVES.find((p) => p.id === from.evolution!.requiresPassive) ?? {
+                                    id: "",
+                                },
+                                unlocked,
+                            ),
+                    ))
+            );
+        }
+        case "passive":
+            return isAvailable(PASSIVES.find((p) => p.id === id)!, unlocked);
+        case "gear":
+            return isAvailable(getGear(id), unlocked);
+        case "trophy":
+            return card.mapId === undefined || isMapUnlocked(save, card.mapId);
+    }
+}
+
+// A pack's pool for this player: its cards whose things they've unlocked (isCardUnlocked), worked
+// out from the save as it's opened
+export function packPool(save: SaveData, pack: PackDef): CardDef[] {
+    const unlocked = new Set(save.unlockedItems);
+    return packCards(pack).filter((card) => cardUnlocked(save, card, unlocked));
+}
+
+// The shares of a player's pack that are each rarity of thing (packRarityShares), for the shop
+export function packPoolShares(save: SaveData, pack: PackDef): Record<Rarity, number> {
+    return packRarityShares(pack, packPool(save, pack));
+}
+
+// Why a pack can't be bought, or undefined if it can: only platinum tokens buy them, never coins,
+// and not one with nothing in it the player's unlocked ("locked")
+export function cantBuyCardPack(save: SaveData, pack: PackDef): "platinum" | "locked" | undefined {
+    if (packPool(save, pack).length === 0) {
+        return "locked";
+    }
     return getPlatinum(save) < pack.price ? "platinum" : undefined;
 }
 
@@ -99,19 +162,44 @@ function rollRarity(odds: Record<Rarity, number>, random: () => number, last: bo
     return rolled[rolled.length - 1];
 }
 
-// A card of the pool that comes in the rarity rolled, at that version. With none (a rarity below
-// every card's own), the rarity goes up to the commonest any of them comes in.
-function pickVersion(
+// A pack's cards, without the save: each a card of the pool picked by its weight (cardWeight: its
+// rarity's and its tier's, so the strongest Very rare things are the rarest pulls), then its
+// version rolled by the pack's odds, no commoner than the card's own. Made once for a pool, so
+// a preview's many packs (core/cardOdds.ts) roll as a bought one does.
+export function packRoller(
+    pack: PackDef,
     pool: readonly CardDef[],
-    rolled: Rarity,
-    random: () => number,
-): { card: CardDef; rarity: Rarity } {
-    const index = (rarity: Rarity) => RARITY_ORDER.indexOf(rarity);
-    const lowest = Math.min(...pool.map((card) => index(card.rarity)));
-    const rarity = RARITY_ORDER[Math.max(index(rolled), lowest)];
-    const cards = pool.filter((card) => index(card.rarity) <= index(rarity));
-    const card = cards[Math.min(Math.floor(random() * cards.length), cards.length - 1)];
-    return { card, rarity };
+): (random: () => number, size?: number) => { card: CardDef; rarity: Rarity }[] {
+    // Each card's weight added up, to search for a roll in
+    const upTo: number[] = [];
+    let total = 0;
+    for (const card of pool) {
+        total += cardWeight(pack, card);
+        upTo.push(total);
+    }
+    const pick = (random: () => number): CardDef => {
+        const roll = random() * total;
+        let lo = 0;
+        let hi = pool.length - 1;
+        while (lo < hi) {
+            const mid = (lo + hi) >> 1;
+            if (upTo[mid] > roll) {
+                hi = mid;
+            } else {
+                lo = mid + 1;
+            }
+        }
+        return pool[lo];
+    };
+    return (random, size = PACK_SIZE) => {
+        const cards: { card: CardDef; rarity: Rarity }[] = [];
+        for (let i = 0; i < size; i++) {
+            const rolled = rollRarity(pack.odds, random, i === size - 1);
+            const card = pick(random);
+            cards.push({ card, rarity: atLeast(rolled, card.rarity) });
+        }
+        return cards;
+    };
 }
 
 // A card from a pack, at its version; new: that version wasn't owned before
@@ -128,9 +216,7 @@ function rollPack(
 ): PackCard[] {
     const cards: PackCard[] = [];
     const owned = { ...save.cards };
-    for (let i = 0; i < size; i++) {
-        const rolled = rollRarity(pack.odds, random, i === size - 1);
-        const { card, rarity } = pickVersion(pool, rolled, random);
+    for (const { card, rarity } of packRoller(pack, pool)(random, size)) {
         const key = versionKey(card, rarity);
         const copies = owned[key] ?? 0;
         cards.push({ card, rarity, isNew: copies === 0 });
@@ -148,7 +234,7 @@ function rollPack(
 export function openCardPack(
     save: SaveData,
     random: () => number,
-    pool: readonly CardDef[] = packCards(BASIC_PACK),
+    pool: readonly CardDef[] = packPool(save, BASIC_PACK),
     starter: readonly CardDef[] = [],
 ): PackCard[] | undefined {
     const packs = getCardPacks(save);
@@ -197,7 +283,7 @@ export function buyCardPack(
     save: SaveData,
     pack: PackDef,
     random: () => number,
-    pool: readonly CardDef[] = packCards(pack),
+    pool: readonly CardDef[] = packPool(save, pack),
 ): PackCard[] | undefined {
     if (cantBuyCardPack(save, pack) || pool.length === 0) {
         return undefined;

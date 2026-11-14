@@ -449,8 +449,14 @@
     margin-left: 0;
 }
 
-/* A player playing Card collection only, in words beside their adventurer */
-.ui-coop-cards-only {
-    margin-left: 6px;
-    color: var(--ui-orange);
+/* A Cards only room's player without the cards their adventurer needs: why they can't ready, and
+   the button to what's needed */
+.ui-coop-cards-blocked {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    margin-top: 6px;
+    text-align: center;
 }

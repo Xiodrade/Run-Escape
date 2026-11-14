@@ -47,10 +47,35 @@ export function getCardRunShortfall(
     characterId: string,
     caps: CardCaps = getCardCaps(save),
 ): CardRunShortfall | undefined {
+    const needs = getCardRunNeeds(save, characterId, caps);
+    const shortfall: CardRunShortfall = {
+        weapons: needs.weapons.missing,
+        passives: needs.passives.missing,
+    };
+    return shortfall.weapons > 0 || shortfall.passives > 0 ? shortfall : undefined;
+}
+
+// A set of cards a Card collection only run counts (CARD_RUN_WEAPONS weapons or CARD_RUN_PASSIVES
+// passives): how many it needs, how many more are missing, and every card that would count, owned
+// or not, for the screen that says what's needed
+export type CardRunNeed = {
+    needed: number;
+    missing: number;
+    cards: { card: CardDef; owned: boolean }[];
+};
+
+// What a Card collection only run as this adventurer needs, card by card: their starter cards
+// (getCardLock), then the weapons and passives that would fill a level up (getCardRunShortfall)
+export function getCardRunNeeds(
+    save: SaveData,
+    characterId: string,
+    caps: CardCaps = getCardCaps(save),
+): { starter: { card: CardDef; owned: boolean }[]; weapons: CardRunNeed; passives: CardRunNeed } {
     const character = getCharacter(characterId);
     const unlocked = new Set(save.unlockedItems);
     const startingWeapon = character.startingWeapon;
     const family = getWeapon(startingWeapon).family;
+    const owned = (card: CardDef) => ({ card, owned: caps.has(card.id) });
     // As rollChoices offers them: not the starting weapon's family (one godsword's enough)
     const weapons = WEAPONS.filter(
         (weapon) =>
@@ -59,19 +84,35 @@ export function getCardRunShortfall(
             !weapon.evolved &&
             !weapon.pickOnly &&
             (!weapon.style || weapon.style === character.style) &&
-            isOfferable(weapon, unlocked) &&
-            caps.has(`weapon:${weapon.id}`),
-    ).length;
-    const passives = PASSIVES.filter(
-        (passive) => isAvailable(passive, unlocked) && caps.has(`passive:${passive.id}`),
-    ).length;
+            isOfferable(weapon, unlocked),
+    ).flatMap((weapon) => {
+        const card = CARD_BY_ID.get(`weapon:${weapon.id}`);
+        return card ? [owned(card)] : [];
+    });
+    const passives = PASSIVES.filter((passive) => isAvailable(passive, unlocked)).flatMap(
+        (passive) => {
+            const card = CARD_BY_ID.get(`passive:${passive.id}`);
+            return card ? [owned(card)] : [];
+        },
+    );
     // An adventurer who finds no items, or carries only the one weapon, needs no more cards
     const more = !character.noItems && (character.maxWeapons ?? 2) > 1;
-    const shortfall: CardRunShortfall = {
-        weapons: more ? Math.max(0, CARD_RUN_WEAPONS - weapons) : 0,
-        passives: more ? Math.max(0, CARD_RUN_PASSIVES - passives) : 0,
+    const need = (list: { card: CardDef; owned: boolean }[], count: number): CardRunNeed => {
+        const needed = more ? count : 0;
+        return {
+            needed,
+            missing: Math.max(0, needed - list.filter((c) => c.owned).length),
+            cards: list,
+        };
     };
-    return shortfall.weapons > 0 || shortfall.passives > 0 ? shortfall : undefined;
+    return {
+        starter: getStarterCards(characterId).map((card) => ({
+            card,
+            owned: getBestVersion(save, card) !== undefined,
+        })),
+        weapons: need(weapons, CARD_RUN_WEAPONS),
+        passives: need(passives, CARD_RUN_PASSIVES),
+    };
 }
 
 // The cards an adventurer starts a run with: their starting weapon's (adventurers start with no
@@ -123,10 +164,22 @@ export function decodeCardCaps(raw: unknown): Map<string, Rarity> | undefined {
     return caps;
 }
 
-// An adventurer a solo Card collection only run can't start as: it's on, the map plays it (not one
-// whose level ups are blessings), the collection can fill a level up, and their starter cards
-// aren't all owned. The starter check comes first: it's one card, the rest scans them all.
+// An adventurer the Cards only tab marks locked: it's the tab picked, the map plays it (not one
+// whose level ups are blessings), and their starter cards aren't all owned
 export function isCardLocked(
+    save: SaveData,
+    characterId: string,
+    map?: { blessings?: unknown },
+): boolean {
+    return (
+        save.cardsOnly === true && !map?.blessings && getCardLock(save, characterId) !== undefined
+    );
+}
+
+// Whether a run from the Cards only tab can't start as this adventurer: their starter cards
+// missing (isCardLocked), or the collection short of a level up (getCardRunShortfall). Picked on
+// that tab, a run is Cards only or doesn't start: never a normal one in its place.
+export function isCardRunBlocked(
     save: SaveData,
     characterId: string,
     map?: { blessings?: unknown },
@@ -134,8 +187,8 @@ export function isCardLocked(
     return (
         save.cardsOnly === true &&
         !map?.blessings &&
-        getCardLock(save, characterId) !== undefined &&
-        !getCardRunShortfall(save, characterId)
+        (getCardLock(save, characterId) !== undefined ||
+            getCardRunShortfall(save, characterId) !== undefined)
     );
 }
 

@@ -129,6 +129,17 @@ export const ARMOURY_COSTS: Record<Rarity, number> = {
     veryRare: 3500,
 };
 
+// How far up its line a piece is: 0 for the start of one (or a piece in none), a Fire cape 1, an
+// Infernal cape 2. Where lines join, the longest way up.
+const DEPTH: Map<string, number> = new Map();
+for (const line of LINES) {
+    line.forEach((id, i) => DEPTH.set(id, Math.max(DEPTH.get(id) ?? 0, i)));
+}
+
+export function getArmouryDepth(itemId: string): number {
+    return DEPTH.get(itemId) ?? 0;
+}
+
 // What a piece upgrades into next, undefined when it's as good as it gets
 export function getNextUpgrade(itemId: string): string | undefined {
     return NEXT.get(itemId);
