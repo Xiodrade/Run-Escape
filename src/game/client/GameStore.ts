@@ -249,6 +249,9 @@ export type HudNumbers = {
     decisionSeconds?: number;
     kills: number;
     coins: number;
+    // Platinum tokens earned so far this run, the party's in co-op (Sim.platinum; a win adds its
+    // share at the end)
+    platinum: number;
     // Damage a second just now, every source counted
     dps: number;
     // For the damage panel (DamageMeter): each weapon's by its id, damage a

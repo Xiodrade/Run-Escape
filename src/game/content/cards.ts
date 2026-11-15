@@ -47,6 +47,10 @@ export const PACK_SIZE = 5;
 export const PLATINUM_PER_KILL = 0.01;
 export const PLATINUM_PER_BOSS = 5;
 export const PLATINUM_WIN = 25;
+// Then twice that in a run that isn't endless (normal and hard mode alike), and three times what
+// it'd be otherwise in a Card collection only run (Sim.platinumScale)
+export const PLATINUM_NOT_ENDLESS = 2;
+export const PLATINUM_CARDS_ONLY = 3;
 // The most a save holds: a crafted save's number stops here
 export const MAX_PLATINUM = 1_000_000;
 // Packs a save starts with, free, once: every save, old ones too, until SaveData.cardPacks is set
@@ -206,8 +210,8 @@ export function cardRarityName(rarity: Rarity): string {
 // A rarity's ink on a printed card, in the game (ui/CardsScreen.tsx) and the card generator
 // (scripts/cards) alike: softer than the game's own rarity colours, so they sit on the plate
 export const CARD_INKS: Record<Rarity, string> = {
-    common: "#ece6da",
-    uncommon: "#8cc878",
+    common: "#8cc878",
+    uncommon: "#eac874",
     rare: "#eb9b63",
     veryRare: "#ed8580",
 };

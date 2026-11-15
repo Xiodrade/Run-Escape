@@ -4018,12 +4018,15 @@ function CameraZoomSlider({
 function KillsAndCoins({ client }: { client: GameClient }): JSX.Element {
     const kills = useHudNumber(client, (n) => n.kills) ?? 0;
     const coins = useHudNumber(client, (n) => n.coins) ?? 0;
+    const platinum = useHudNumber(client, (n) => n.platinum) ?? 0;
     return (
         <>
             <div>
                 <span className="ui-skull">☠</span> {kills.toLocaleString()}
             </div>
             <Coins amount={coins} />
+            {/* Platinum tokens, for card packs, beside the coins */}
+            <Platinum amount={platinum} />
         </>
     );
 }
@@ -5277,12 +5280,6 @@ export function ResultModal({ ui, client }: ScreenProps): JSX.Element {
                     <p className="ui-subtle">{t("ui.result.relics_no_hard")}</p>
                 )}
                 {result?.cardsOnly && <p className="ui-subtle">{t("ui.result.cards_only")}</p>}
-                {/* What packs are bought with, apart from the coins (content/cards.ts) */}
-                {result !== undefined && (result.platinum ?? 0) > 0 && (
-                    <p className="ui-unlocked">
-                        {t("ui.result.platinum")} <Platinum amount={result.platinum!} />
-                    </p>
-                )}
                 {result?.firstHardWin && (
                     <p className="ui-unlocked">
                         {t("ui.result.first_hard_win", { map: mapName(getMap(result.mapId)) })}
@@ -5547,6 +5544,13 @@ export function ResultModal({ ui, client }: ScreenProps): JSX.Element {
                                         <td>{t("ui.result.stat.coins_banked")}</td>
                                         <td>
                                             <Coins amount={result.coins} />
+                                        </td>
+                                    </tr>
+                                    {/* What card packs are bought with (content/cards.ts) */}
+                                    <tr>
+                                        <td>{t("ui.result.stat.platinum")}</td>
+                                        <td>
+                                            <Platinum amount={result.platinum ?? 0} />
                                         </td>
                                     </tr>
                                 </tbody>

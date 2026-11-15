@@ -9,12 +9,13 @@ the version in the corner).
 
 - Cards, by Okaeri: a collectible card for every weapon, passive, casket gear and Collection log
   trophy, each in versions from its own rarity up to Very rare, and rare foil copies, with a Cards
-  tab in the Collection log. Runs earn platinum tokens (fewer in endless runs), which buy packs in
-  the Card shop (the first one's free); packs hold only what you've unlocked, and each pack's
-  Preview shows your chance of every card in it. Packs open on a playmat, a card at a time. The
-  Cards only tab makes runs offer only what you have cards of, no rarer than your best version, with
-  a pet whose card you have (in co-op, the host's choice for the whole room); the Collection log
-  marks trophies first found in such a run, and the map list marks maps won in one.
+  tab in the Collection log. Runs earn platinum tokens (shown beside your coins, more in a Cards
+  only run, fewer in endless runs), which buy packs in the Card shop (the first one's free); packs
+  hold only what you've unlocked, and each pack's Preview shows your chance of every card in it.
+  Packs open on a playmat, a card at a time. The Cards only tab makes runs offer only what you have
+  cards of, no rarer than your best version, with a pet whose card you have (in co-op, the host's
+  choice for the whole room); the Collection log marks trophies first found in such a run, and the
+  map list marks maps won in one.
 
 ## 0.32.2 - 2026-11-14
 

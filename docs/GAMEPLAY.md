@@ -91,7 +91,8 @@ version and how to run it.
   evolutions, each shown as the weapon that evolves until it's been made.
 - **Cards** (the title's Cards tile): a card for every weapon, passive, reward casket gear and
   Collection log trophy, each in versions from its own rarity up to Very rare. Runs earn platinum
-  tokens beside their coins, scaled as coins are (less in endless runs), and the Card shop sells
+  tokens beside their coins, scaled as coins are, twice over outside endless runs and three times
+  that in a Cards only run, and the Card shop sells
   packs for platinum tokens (never coins): one of any weapon, passive or trophy card, one each of
   weapons, passives, casket gear and trophies, one of the raids' finds, and a dearer one likelier to
   be rare. Each offer says what it holds, what its last card is at least (where that's better than

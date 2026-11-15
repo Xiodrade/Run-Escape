@@ -9,7 +9,13 @@ import { getStepCoins, getStepDifficulty } from "../content/acts";
 import { ArmouryUpgrades, getUpgradeLine, getUpgradedGear } from "../content/armoury";
 import { WeaponDamageBalance } from "../content/balance";
 import { BLESSED_FAN_ANGLE, blessAbility, getBlessing } from "../content/blessings";
-import { PLATINUM_PER_BOSS, PLATINUM_PER_KILL, PLATINUM_WIN } from "../content/cards";
+import {
+    PLATINUM_CARDS_ONLY,
+    PLATINUM_NOT_ENDLESS,
+    PLATINUM_PER_BOSS,
+    PLATINUM_PER_KILL,
+    PLATINUM_WIN,
+} from "../content/cards";
 import { getCharacter } from "../content/characters";
 import {
     EXTRA_REVIVE_PRICE,
@@ -2998,7 +3004,7 @@ export class Sim {
             // (a little over, so hundredths summed as floats don't fall a token short)
             platinum: Math.floor(
                 this.platinum +
-                    (this.state === "victory" ? PLATINUM_WIN * this.coinScale : 0) +
+                    (this.state === "victory" ? PLATINUM_WIN * this.platinumScale : 0) +
                     1e-6,
             ),
             bossesKilled: [...this.bossesKilled],
@@ -3768,6 +3774,20 @@ export class Sim {
     }
     private coinScaleTick = -1;
     private coinScaleAt = 1;
+
+    // What platinum tokens are worth over coins: twice in a run that isn't endless, and three times
+    // that in a Card collection only run (each player's caps, the whole room's in co-op)
+    get platinumBoost(): number {
+        return (
+            (this.endless ? 1 : PLATINUM_NOT_ENDLESS) *
+            (this.heroes.some((hero) => hero.cardCaps) ? PLATINUM_CARDS_ONLY : 1)
+        );
+    }
+
+    // What platinum tokens are worth in the run right now (coinScale, then platinumBoost)
+    get platinumScale(): number {
+        return this.coinScale * this.platinumBoost;
+    }
 
     // Coins for high alching an item, as the run pays them
     alchValue(itemId: string, upgrades = 0): number {
@@ -20240,7 +20260,7 @@ export class Sim {
         // One brought back by a reviver was counted the first time it died
         if (!byEnemy && !enemy.noDrops) {
             this.kills++;
-            this.platinum += PLATINUM_PER_KILL * this.tickCoinScale();
+            this.platinum += PLATINUM_PER_KILL * this.tickCoinScale() * this.platinumBoost;
             this.countTraitKill();
             this.countRelicKill();
             if (lastCopy) {
@@ -20252,7 +20272,7 @@ export class Sim {
         if (enemy.boss) {
             if (lastCopy) {
                 this.bossesKilled.push(enemy.def.id);
-                this.platinum += PLATINUM_PER_BOSS * this.tickCoinScale();
+                this.platinum += PLATINUM_PER_BOSS * this.tickCoinScale() * this.platinumBoost;
                 this.bossKills.push({ enemyId: enemy.def.id, seconds: this.seconds });
                 if (INVADER_BY_ID.has(enemy.def.id) && !byEnemy) {
                     this.invaderDown(enemy);

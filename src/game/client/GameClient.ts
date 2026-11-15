@@ -5073,6 +5073,8 @@ export class GameClient implements GameFrameHandler {
             decisionSeconds: this.coopStopped ? undefined : this.coopRun?.decisionSeconds,
             kills: sim.kills,
             coins: sim.coins,
+            // (a little over, so hundredths summed as floats don't fall a token short)
+            platinum: Math.floor(sim.platinum + 1e-6),
             dps: this.shownDps,
             weaponDamage,
             otherDps: meter.otherPerSecond,

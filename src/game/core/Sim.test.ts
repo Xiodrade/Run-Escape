@@ -1,6 +1,12 @@
 import { getBuffViews, getInventoryViews } from "../client/ItemViews";
 import { getUpgradeLine, getUpgradedGear } from "../content/armoury";
-import { PLATINUM_PER_BOSS, PLATINUM_PER_KILL, PLATINUM_WIN } from "../content/cards";
+import {
+    PLATINUM_CARDS_ONLY,
+    PLATINUM_NOT_ENDLESS,
+    PLATINUM_PER_BOSS,
+    PLATINUM_PER_KILL,
+    PLATINUM_WIN,
+} from "../content/cards";
 import { CHARACTERS } from "../content/characters";
 import {
     ENDLESS_COINS,
@@ -6338,7 +6344,8 @@ describe("platinum tokens (card packs' currency)", () => {
         const sim = play(false);
         const kills = sim.kills;
         expect(kills).toBeGreaterThan(100);
-        expect(sim.platinum).toBeCloseTo(kills * PLATINUM_PER_KILL);
+        // Twice the base outside endless runs
+        expect(sim.platinum).toBeCloseTo(kills * PLATINUM_PER_KILL * PLATINUM_NOT_ENDLESS);
         const boss = sim.spawnEnemy(getEnemy("wise_old_man"), "finalBoss", {
             x: 1040.5,
             y: 1036.5,
@@ -6346,12 +6353,15 @@ describe("platinum tokens (card packs' currency)", () => {
         sim.damageEnemy(boss, 1e9, 0, sim.player.x, sim.player.y);
         expect(sim.state).toBe("victory");
         expect(sim.getResult().platinum).toBe(
-            Math.floor(sim.kills * PLATINUM_PER_KILL + PLATINUM_PER_BOSS + PLATINUM_WIN),
+            Math.floor(
+                (sim.kills * PLATINUM_PER_KILL + PLATINUM_PER_BOSS + PLATINUM_WIN) *
+                    PLATINUM_NOT_ENDLESS,
+            ),
         );
     });
 
     it("never fall a token short from adding hundredths", () => {
-        // 300 kills at 0.01 sum to 2.9999... as floats
+        // 300 kills at 0.01 (twice over) sum to 5.9999... as floats
         const sim = createSim();
         let kills = 0;
         while (kills < 300) {
@@ -6362,20 +6372,38 @@ describe("platinum tokens (card packs' currency)", () => {
             }
         }
         expect(sim.kills).toBe(300);
-        expect(sim.getResult().platinum).toBe(3);
+        expect(sim.getResult().platinum).toBe(3 * PLATINUM_NOT_ENDLESS);
     });
 
-    it("come at the coins' rate: less in endless runs, more on hard mode", () => {
+    it("come at the coins' rate, doubled outside endless runs", () => {
         const normal = play(false);
         const endless = play(true);
         const hard = play(false, true);
         expect(endless.coinScale).toBeLessThan(1);
-        expect(endless.platinum / endless.kills).toBeCloseTo(
-            (normal.platinum / normal.kills) * endless.coinScale,
-        );
-        expect(hard.platinum / hard.kills).toBeCloseTo(
-            (normal.platinum / normal.kills) * hard.coinScale,
-        );
         expect(hard.coinScale).toBeGreaterThan(1);
+        expect(normal.platinumBoost).toBe(PLATINUM_NOT_ENDLESS);
+        expect(endless.platinumBoost).toBe(1);
+        expect(hard.platinumBoost).toBe(PLATINUM_NOT_ENDLESS);
+        const perKill = (sim: Sim) => sim.platinum / sim.kills / PLATINUM_PER_KILL;
+        expect(perKill(normal)).toBeCloseTo(normal.coinScale * PLATINUM_NOT_ENDLESS);
+        expect(perKill(endless)).toBeCloseTo(endless.coinScale);
+        expect(perKill(hard)).toBeCloseTo(hard.coinScale * PLATINUM_NOT_ENDLESS);
+    });
+
+    it("come three times over in a Card collection only run", () => {
+        const sim = new Sim({
+            grid: makeGrid(openField(), 1000, 1000),
+            mapId: "lumbridge",
+            characterId: "warrior",
+            metaStats: emptyStats(),
+            seed: 1,
+            spawnX: 1036.5,
+            spawnY: 1036.5,
+            cardCaps: new Map([["weapon:scimitar", "veryRare"]]),
+        });
+        expect(sim.platinumBoost).toBe(PLATINUM_NOT_ENDLESS * PLATINUM_CARDS_ONLY);
+        expect(sim.platinumScale).toBeCloseTo(
+            sim.coinScale * PLATINUM_NOT_ENDLESS * PLATINUM_CARDS_ONLY,
+        );
     });
 });

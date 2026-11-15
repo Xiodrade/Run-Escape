@@ -75,6 +75,7 @@ function numbers(changes: Partial<HudNumbers> = {}): HudNumbers {
         seconds: 61,
         kills: 7,
         coins: 3,
+        platinum: 0,
         dps: 0,
         weaponDamage: {},
         otherDps: 0,
